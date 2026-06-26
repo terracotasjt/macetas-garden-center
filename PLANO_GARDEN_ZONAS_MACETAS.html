@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa Garden — Zonas de Macetas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --verde: #2d6a4f; --verde-claro: #74c69d; --tierra: #8B5E3C;
+    --arena: #f4e9d8; --maceta: #c75b39; --maceta-hover: #a8432a;
+    --maceta-light: #f5e6e0; --texto: #1a1a18; --texto-suave: #5a5a56;
+    --borde: #c8c4bc; --fondo: #f7f4ef; --panel-bg: #ffffff;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; }
+  header { background: var(--verde); color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  header .subtitle { font-size: 11px; opacity: 0.7; font-family: 'DM Mono', monospace; }
+  .header-right { display: flex; gap: 8px; align-items: center; }
+  .btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.15s; }
+  .btn:hover { background: rgba(255,255,255,0.25); }
+  .layout { display: flex; height: calc(100vh - 52px); }
+  .map-container { flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; justify-content: center; }
+  .map-wrapper { position: relative; width: 820px; min-width: 820px; }
+  .update-badge { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--texto-suave); margin-bottom: 10px; text-align: right; }
+  svg#garden-map { width: 820px; height: 660px; display: block; }
+  .zona-contexto { fill: #e8e4dc; stroke: #c8c4bc; stroke-width: 1; }
+  .zona-lago { fill: #bde0f5; stroke: #8bbfd8; stroke-width: 1; }
+  .zona-parking { fill: #d8d5ce; stroke: #bbb8b0; stroke-width: 1; }
+  .zona-edificio { fill: #c9c6c0; stroke: #a8a5a0; stroke-width: 1.5; }
+  .zona-verde { fill: #d8edd0; stroke: #90c080; stroke-width: 1; }
+  .zona-maceta { fill: #f0d5c8; stroke: var(--maceta); stroke-width: 2; cursor: pointer; transition: fill 0.15s; }
+  .zona-maceta:hover { fill: #e0b8a8; }
+  .zona-maceta.activa { fill: var(--maceta); }
+  .label-maceta { font-family: 'DM Sans', sans-serif; font-size: 9px; font-weight: 700; fill: var(--maceta); pointer-events: none; text-anchor: middle; }
+  .label-maceta.activa { fill: white; }
+  .label-contexto { font-family: 'DM Sans', sans-serif; font-size: 8px; fill: #7a7a76; pointer-events: none; text-anchor: middle; }
+  /* PANEL */
+  .panel { width: 560px; min-width: 420px; max-width: 80vw; background: var(--panel-bg); border-left: 1px solid var(--borde); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .panel-resizer { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 5; }
+  .panel-resizer:hover, .panel-resizer.dragging { background: rgba(199,91,57,0.15); }
+  .panel-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 0; color: var(--texto-suave); padding: 32px; text-align: center; gap: 12px; }
+  .panel-empty .icon { width: 48px; height: 48px; background: var(--maceta-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .panel-empty p { font-size: 13px; line-height: 1.5; }
+  .panel-content { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+  .panel-content.visible { display: flex; }
+  .panel-header { padding: 14px 16px 12px; border-bottom: 1px solid var(--borde); background: var(--maceta); color: white; flex-shrink: 0; }
+  .panel-header .zona-id { font-family: 'DM Mono', monospace; font-size: 10px; opacity: 0.8; margin-bottom: 2px; }
+  .panel-header h2 { font-size: 15px; font-weight: 600; }
+  .panel-tabs { display: flex; border-bottom: 1px solid var(--borde); flex-shrink: 0; background: white; }
+  .panel-tab { flex: 1; padding: 9px 6px; font-size: 11px; font-weight: 500; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; color: var(--texto-suave); transition: all 0.15s; font-family: 'DM Sans', sans-serif; background: none; border-top: none; border-left: none; border-right: none; }
+  .panel-tab:hover { color: var(--maceta); background: var(--maceta-light); }
+  .panel-tab.active { color: var(--maceta); border-bottom-color: var(--maceta); font-weight: 600; }
+  .panel-body { padding: 12px 14px; flex: 1; overflow-y: auto; }
+  /* CATÁLOGO */
+  .proveedor-block { border: 1px solid var(--borde); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .proveedor-header { background: #f5f0e8; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .proveedor-header:hover { background: #ede8e0; }
+  .proveedor-nombre { font-size: 13px; font-weight: 600; color: var(--tierra); }
+  .btn-icon { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px; color: var(--texto-suave); transition: background 0.1s; font-family: 'DM Sans', sans-serif; }
+  .btn-icon:hover { background: rgba(0,0,0,0.08); }
+  .proveedor-body { padding: 8px 10px; }
+  .coleccion-block { border: 1px solid #e8e0d8; border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+  .coleccion-header { background: #fdf8f2; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .coleccion-header:hover { background: #f5ede0; }
+  .coleccion-nombre { font-size: 12px; font-weight: 600; color: var(--maceta); }
+  .coleccion-body { padding: 6px 8px; }
+  .modelo-block { background: white; border: 1px solid #ede8e0; border-radius: 6px; margin-bottom: 6px; padding: 8px 10px; }
+  .modelo-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .modelo-info { flex: 1; }
+  .modelo-nombre { font-size: 12px; font-weight: 600; color: var(--texto); margin-bottom: 2px; }
+  .modelo-material { font-size: 11px; color: var(--texto-suave); margin-bottom: 4px; }
+  .modelo-foto { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; border: 1px solid var(--borde); flex-shrink: 0; }
+  .modelo-foto-placeholder { width: 52px; height: 52px; border-radius: 6px; background: var(--maceta-light); border: 1px dashed var(--borde); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .tallas-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .talla-tag { background: var(--arena); border: 1px solid var(--borde); border-radius: 12px; padding: 2px 8px; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--texto-suave); }
+  .modelo-notas { font-size: 11px; color: var(--texto-suave); font-style: italic; margin-top: 4px; }
+  .btn-add { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--maceta); background: none; border: 1px dashed var(--maceta); border-radius: 6px; padding: 5px 10px; cursor: pointer; width: 100%; margin-top: 6px; font-family: 'DM Sans', sans-serif; transition: background 0.1s; }
+  .btn-add:hover { background: var(--maceta-light); }
+  .btn-add-proveedor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--verde); background: none; border: 1px dashed var(--verde); border-radius: 8px; padding: 8px 14px; cursor: pointer; width: 100%; margin-top: 8px; font-family: 'DM Sans', sans-serif; transition: background 0.1s; }
+  .btn-add-proveedor:hover { background: #e8f5ee; }
+  .empty-zona { text-align: center; padding: 24px 16px; color: var(--texto-suave); font-size: 12px; line-height: 1.6; }
+  .collapse-body.hidden { display: none; }
+  .collapse-arrow { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+  /* REORDENAR */
+  .reorder-btns { display: flex; flex-direction: column; gap: 1px; }
+  .btn-reorder { background: none; border: none; cursor: pointer; font-size: 9px; line-height: 1; padding: 2px 3px; color: var(--texto-suave); border-radius: 3px; font-family: 'DM Sans', sans-serif; }
+  .btn-reorder:hover { background: rgba(0,0,0,0.08); color: var(--maceta); }
+  .btn-reorder:disabled { opacity: 0.25; cursor: default; }
+  .btn-reorder:disabled:hover { background: none; color: var(--texto-suave); }
+  /* CHIP COLOR */
+  .color-chip { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.25); flex-shrink: 0; display: inline-block; }
+  /* ETIQUETAS (tags) */
+  .etiquetas-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .etiqueta-tag { background: #eaf2ea; border: 1px solid #b8d8c0; color: var(--verde); border-radius: 10px; padding: 1px 8px; font-size: 9.5px; font-weight: 500; }
+  .etiqueta-tag.cat-material { background: #f5ede0; border-color: #d8c4a0; color: var(--tierra); }
+  .etiqueta-tag.cat-forma { background: #f0e0ec; border-color: #d8a8c8; color: #9c4878; }
+  .etiqueta-tag.cat-tamano { background: #e0ecf5; border-color: #a8c4d8; color: #3c6e96; }
+  .etiqueta-tag.cat-otro { background: #eee9f5; border-color: #c4b8d8; color: #6c4896; }
+  .etiquetas-editor { display: flex; flex-direction: column; gap: 6px; }
+  .etiqueta-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+  .etiqueta-row select, .etiqueta-row input { padding: 6px 8px; font-size: 12px; border: 1px solid var(--borde); border-radius: 6px; outline: none; font-family: 'DM Sans', sans-serif; }
+  .etiqueta-row select:focus, .etiqueta-row input:focus { border-color: var(--maceta); }
+  /* BUSCADOR */
+  .search-box { padding: 10px 16px; border-bottom: 1px solid var(--borde); flex-shrink: 0; background: #fbf9f5; position: relative; z-index: 10; }
+  .search-input-wrap { position: relative; }
+  .search-input { width: 100%; border: 1px solid var(--borde); border-radius: 20px; padding: 8px 14px 8px 32px; font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; background: white; }
+  .search-input:focus { border-color: var(--maceta); }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.5; }
+  .search-results { position: absolute; left: 16px; right: 16px; top: 100%; margin-top: 8px; max-height: 320px; overflow-y: auto; display: none; background: white; border: 1px solid var(--borde); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 8px; }
+  .search-results.visible { display: block; }
+  .search-result-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid var(--borde); margin-bottom: 6px; background: white; }
+  .search-result-item:hover { background: var(--maceta-light); border-color: var(--maceta); }
+  .search-result-zona { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--maceta); font-weight: 600; text-transform: uppercase; }
+  .search-result-path { font-size: 11px; color: var(--texto-suave); margin-top: 1px; }
+  .search-result-nombre { font-size: 12.5px; font-weight: 600; color: var(--texto); margin-top: 2px; }
+  .search-empty { font-size: 12px; color: var(--texto-suave); text-align: center; padding: 14px 8px; }
+  /* LEYENDA */
+  .leyenda { display: flex; gap: 16px; padding: 8px 0 0; flex-wrap: wrap; }
+  .leyenda-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--texto-suave); }
+  .leyenda-color { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); }
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 12px; width: 460px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-header { padding: 16px 18px 12px; border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--texto-suave); line-height: 1; padding: 0; }
+  .modal-body { padding: 18px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--texto-suave); margin-bottom: 5px; }
+  .form-input, .form-textarea, .form-select { width: 100%; border: 1px solid var(--borde); border-radius: 8px; padding: 8px 11px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--texto); background: white; transition: border-color 0.15s; outline: none; }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--maceta); }
+  .form-textarea { resize: vertical; min-height: 70px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tallas-editor { display: flex; flex-direction: column; gap: 6px; }
+  .talla-row { display: grid; grid-template-columns: 36px 1.3fr 0.9fr 0.9fr 34px auto; gap: 6px; align-items: center; }
+  .talla-row input[type=text], .talla-row input[type=number] { padding: 6px 8px; font-size: 12px; border: 1px solid var(--borde); border-radius: 6px; outline: none; font-family: 'DM Sans', sans-serif; width: 100%; }
+  .talla-row input:focus { border-color: var(--maceta); }
+  .talla-row input[type=color] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--borde); border-radius: 6px; cursor: pointer; background: white; }
+  .talla-labels { display: grid; grid-template-columns: 36px 1.3fr 0.9fr 0.9fr 34px auto; gap: 6px; margin-bottom: 2px; }
+  .talla-labels span { font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-suave); }
+  .talla-medida-wrap { display: flex; flex-direction: column; gap: 2px; }
+  .talla-forma-toggle { font-size: 9px; color: var(--texto-suave); display: flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; }
+  .talla-forma-toggle input { width: auto !important; padding: 0 !important; margin: 0; }
+  .btn-remove-talla { background: none; border: none; cursor: pointer; font-size: 16px; color: #c0392b; padding: 0 4px; line-height: 1; }
+  .foto-preview { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--borde); display: none; margin-top: 6px; }
+  .modal-footer { padding: 12px 18px; border-top: 1px solid var(--borde); display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-cancelar { background: none; border: 1px solid var(--borde); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--texto-suave); }
+  .btn-guardar { background: var(--maceta); border: none; border-radius: 8px; padding: 7px 20px; font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; color: white; cursor: pointer; }
+  .btn-guardar:hover { background: var(--maceta-hover); }
+  .btn-danger { background: #c0392b; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: white; cursor: pointer; margin-right: auto; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: var(--verde); color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; z-index: 200; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media print { .panel, .header-right { display: none !important; } .layout { height: auto; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="subtitle">Garden · Zona Macetas</div>
+    <h1>Mapa de colecciones y modelos</h1>
+  </div>
+  <div class="header-right">
+    <button class="btn" onclick="descargarBackup()" title="Descargar respaldo de tus datos">💾 Backup</button>
+    <button class="btn" onclick="document.getElementById('input-backup-file').click()" title="Cargar respaldo guardado">📂 Cargar</button>
+    <input type="file" id="input-backup-file" accept=".json" style="display:none" onchange="cargarBackup(this)"/>
+    <button class="btn" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn" onclick="abrirModalFecha()">✏ Fecha</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="map-container">
+    <div class="map-wrapper">
+      <div class="update-badge">Última actualización: <span id="fecha-texto">—</span></div>
+
+      <svg id="garden-map" viewBox="0 0 820 660" xmlns="http://www.w3.org/2000/svg">
+        <!-- Fondo general -->
+        <rect x="8" y="8" width="804" height="644" rx="8" fill="#eeeae3" stroke="#c8c4bc" stroke-width="1.5"/>
+
+        <!-- ======= ZONAS CONTEXTO ======= -->
+
+        <!-- Lago — empieza donde termina Rosales -->
+        <rect x="596" y="392" width="82" height="44" rx="4" fill="#bde0f5" stroke="#8bbfd8" stroke-width="1"/>
+        <text x="637" y="412" class="label-contexto" style="font-size:7px">LAGO</text>
+
+        <!-- Aromáticas — desde donde termina Z10 hasta Áridos, desde Z4 hasta Z9 -->
+        <rect x="425" y="358" width="83" height="75" rx="3" fill="#e8f5e8" stroke="#a0c890" stroke-width="1"/>
+        <text x="466" y="397" class="label-contexto" style="font-size:6px;writing-mode:vertical-lr;text-anchor:middle">AROMÁTICAS</text>
+
+        <!-- Áridos — columna vertical estrecha, empieza donde termina Parque, termina donde Z10 -->
+        <rect x="508" y="324" width="22" height="106" rx="3" fill="#f0ead8" stroke="#c0a878" stroke-width="1"/>
+        <text x="519" y="379" class="label-contexto" style="font-size:6px;writing-mode:vertical-lr;text-anchor:middle">ÁRIDOS</text>
+
+        <!-- Bar — dentro del patio, en borde superior -->
+        <rect x="440" y="435" width="36" height="26" rx="3" class="zona-edificio"/>
+        <text x="458" y="451" class="label-contexto" style="font-size:7px">BAR</text>
+
+        <!-- Parque — alineado con tinajas gigantes -->
+        <rect x="533" y="280" width="55" height="44" rx="4" fill="#d4eec4" stroke="#8aba6a" stroke-width="1"/>
+        <text x="560" y="306" class="label-contexto" style="font-size:7px">PARQUE</text>
+
+        <!-- Carpa antigüedades — alineada con tinajas gigantes -->
+        <rect x="596" y="280" width="82" height="44" rx="4" fill="#f0e8d0" stroke="#c8a870" stroke-width="1"/>
+        <text x="637" y="299" class="label-contexto" style="font-size:7px">CARPA</text>
+        <text x="637" y="309" class="label-contexto" style="font-size:7px">ANTIGÜED.</text>
+
+        <!-- Tinajas gigantes -->
+        <rect x="686" y="280" width="76" height="38" rx="4" fill="#f0e8d0" stroke="#c8a870" stroke-width="1"/>
+        <text x="724" y="297" class="label-contexto" style="font-size:7px">TINAJAS</text>
+        <text x="724" y="306" class="label-contexto" style="font-size:7px">GIGANTES</text>
+
+        <!-- Rosales -->
+        <rect x="533" y="358" width="82" height="34" rx="4" fill="#fce8ec" stroke="#e0a0b0" stroke-width="1"/>
+        <text x="574" y="378" class="label-contexto" style="font-size:7px">ROSALES</text>
+
+        <!-- Cactuario -->
+        <rect x="686" y="322" width="76" height="46" rx="4" fill="#e8f0d8" stroke="#a0b870" stroke-width="1"/>
+        <text x="724" y="349" class="label-contexto" style="font-size:7px">CACTUARIO</text>
+
+        <!-- Plantas arbustivas -->
+        <rect x="686" y="372" width="76" height="60" rx="4" class="zona-verde"/>
+        <text x="724" y="406" class="label-contexto" style="font-size:7px">ARBUSTIVAS</text>
+
+        <!-- Acuáticas -->
+        <rect x="686" y="436" width="76" height="38" rx="4" class="zona-verde"/>
+        <text x="724" y="458" class="label-contexto" style="font-size:7px">ACUÁTICAS</text>
+
+        <!-- Sustratos — vertical, entre Z9 y plantas exterior, empieza donde Z9 termina, igual ancho que áridos -->
+        <rect x="508" y="510" width="22" height="110" rx="3" fill="#e8e0d0" stroke="#c0b090" stroke-width="1"/>
+        <text x="519" y="568" class="label-contexto" style="font-size:6px;writing-mode:vertical-lr;text-anchor:middle">SUSTRATOS</text>
+
+        <!-- Plantas exterior -->
+        <rect x="562" y="545" width="168" height="65" rx="4" class="zona-verde"/>
+        <text x="646" y="581" class="label-contexto">PLANTAS EXTERIOR</text>
+
+        <!-- Frutales -->
+        <rect x="562" y="613" width="110" height="30" rx="3" class="zona-verde"/>
+        <text x="617" y="631" class="label-contexto" style="font-size:7px">FRUTALES</text>
+
+        <!-- Floristería -->
+        <rect x="162" y="418" width="65" height="30" rx="3" fill="#fce8f0" stroke="#e0a0c0" stroke-width="1"/>
+        <text x="194" y="436" class="label-contexto" style="font-size:7px">FLORIST.</text>
+
+        <!-- Oficinas — empiezan donde termina Floristería, terminan donde Caja -->
+        <rect x="162" y="448" width="75" height="157" rx="3" class="zona-edificio"/>
+        <text x="199" y="527" class="label-contexto" style="font-size:7px">OFICINAS</text>
+
+        <!-- Caja -->
+        <rect x="322" y="575" width="55" height="30" rx="3" class="zona-edificio"/>
+        <text x="349" y="593" class="label-contexto" style="font-size:7px">CAJA</text>
+
+        <!-- Entrada -->
+        <rect x="322" y="608" width="72" height="22" rx="3" fill="#2d6a4f" opacity="0.85"/>
+        <text x="358" y="622" class="label-contexto" style="fill:white;font-weight:600;font-size:8px">▲ ENTRADA</text>
+
+        <!-- Parking — termina donde Sustratos empieza -->
+        <rect x="162" y="635" width="346" height="16" rx="3" class="zona-parking"/>
+        <text x="335" y="647" class="label-contexto" style="font-size:7px">PARKING</text>
+
+        <!-- Talleres -->
+        <rect x="768" y="560" width="40" height="60" rx="3" class="zona-edificio"/>
+        <text x="788" y="594" class="label-contexto" style="font-size:7px">TALL.</text>
+
+        <!-- Zona basuras -->
+        <rect x="768" y="490" width="40" height="66" rx="3" fill="#e0ddd8" stroke="#b8b5b0" stroke-width="1"/>
+        <text x="788" y="526" class="label-contexto" style="font-size:6px">BASU-</text>
+        <text x="788" y="534" class="label-contexto" style="font-size:6px">RAS</text>
+
+        <!-- Bonsáis — justo debajo de Z2, x=162 -->
+        <rect x="162" y="108" width="100" height="100" rx="3" fill="#e8e4dc" stroke="#c8c4bc" stroke-width="1"/>
+        <text x="212" y="162" class="label-contexto" style="font-size:7px">BONSÁIS</text>
+
+        <!-- ======= ZONAS MACETAS ======= -->
+
+        <!-- Z1 — rect 142x150 -->
+        <rect x="18" y="18" width="142" height="150"
+          class="zona-maceta" data-zona="z1" onclick="seleccionarZona('z1')"/>
+        <text x="89" y="75" class="label-maceta" data-zona="z1">Z1</text>
+        <text x="89" y="87" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z1">PLANTA AUTÓCTONA</text>
+        <text x="89" y="97" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z1">(MACETAS)</text>
+
+        <!-- Z2 — x=162 -->
+        <rect x="162" y="18" width="100" height="88" rx="4" class="zona-maceta" data-zona="z2" onclick="seleccionarZona('z2')"/>
+        <text x="212" y="57" class="label-maceta" data-zona="z2">Z2</text>
+        <text x="212" y="68" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z2">PÉRGOLA FIBRA</text>
+
+        <!-- Z3 — x=280, pasillo de Z2 -->
+        <rect x="280" y="18" width="250" height="44" rx="4" class="zona-maceta" data-zona="z3" onclick="seleccionarZona('z3')"/>
+        <text x="405" y="38" class="label-maceta" data-zona="z3">Z3</text>
+        <text x="405" y="49" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z3">MACETAS PLÁSTICO</text>
+
+        <!-- Z6 — x=530, width=262 -->
+        <rect x="530" y="18" width="262" height="182" rx="4" class="zona-maceta" data-zona="z6" onclick="seleccionarZona('z6')"/>
+        <text x="661" y="105" class="label-maceta" data-zona="z6">Z6</text>
+        <text x="661" y="116" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z6">MACETAS GRANDE</text>
+
+        <!-- Z10 — width=185 -->
+        <rect x="240" y="210" width="185" height="220" rx="4" class="zona-maceta" data-zona="z10" onclick="seleccionarZona('z10')"/>
+        <text x="332" y="315" class="label-maceta" data-zona="z10">Z10</text>
+        <text x="332" y="327" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z10">TIENDA /</text>
+        <text x="332" y="337" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z10">PL. INTERIOR</text>
+
+        <!-- Z4 — columna, desde bonsáis hasta rosales, termina en áridos -->
+        <rect x="428" y="108" width="80" height="250" rx="4" class="zona-maceta" data-zona="z4" onclick="seleccionarZona('z4')"/>
+        <text x="468" y="224" class="label-maceta" style="font-size:8px" data-zona="z4">Z4</text>
+        <text x="468" y="237" class="label-maceta" style="font-size:6px;fill:#c75b39" data-zona="z4">EST.</text>
+        <text x="468" y="247" class="label-maceta" style="font-size:6px;fill:#c75b39" data-zona="z4">TEMP.</text>
+
+        <!-- Z5 — pequeño cuadrado, pegado a Z6 -->
+        <rect x="533" y="202" width="55" height="44" rx="4" class="zona-maceta" data-zona="z5" onclick="seleccionarZona('z5')"/>
+        <text x="560" y="222" class="label-maceta" style="font-size:8px" data-zona="z5">Z5</text>
+        <text x="560" y="233" class="label-maceta" style="font-size:6px;fill:#c75b39" data-zona="z5">CORNER</text>
+
+        <!-- Z7 — columna derecha larga -->
+        <rect x="764" y="200" width="46" height="285" rx="4" class="zona-maceta" data-zona="z7" onclick="seleccionarZona('z7')"/>
+        <text x="787" y="338" class="label-maceta" style="font-size:7px" data-zona="z7">Z7</text>
+        <text x="787" y="350" class="label-maceta" style="font-size:6px;fill:#c75b39" data-zona="z7">PAS.</text>
+        <text x="787" y="360" class="label-maceta" style="font-size:6px;fill:#c75b39" data-zona="z7">ANT.</text>
+
+        <!-- Z8 — franja horizontal pasillo lago, height=30 -->
+        <rect x="533" y="478" width="228" height="30" rx="4" class="zona-maceta" data-zona="z8" onclick="seleccionarZona('z8')"/>
+        <text x="647" y="495" class="label-maceta" data-zona="z8">Z8 — PASILLO LAGO</text>
+
+        <!-- Z9 — grande, debajo de Z10+Z4, entre Z11 y sustratos, termina en áridos -->
+        <rect x="240" y="433" width="268" height="138" rx="4" class="zona-maceta" data-zona="z9" onclick="seleccionarZona('z9')"/>
+        <text x="385" y="495" class="label-maceta" data-zona="z9">Z9</text>
+        <text x="385" y="507" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z9">PATIO (MACETAS)</text>
+
+        <!-- Z11 — columna izquierda abajo grande -->
+        <rect x="18" y="168" width="142" height="449" rx="4" class="zona-maceta" data-zona="z11" onclick="seleccionarZona('z11')"/>
+        <text x="89" y="385" class="label-maceta" data-zona="z11">Z11</text>
+        <text x="89" y="397" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z11">TINAJAS Y</text>
+        <text x="89" y="407" class="label-maceta" style="font-size:7px;fill:#c75b39" data-zona="z11">PICAS PIEDRA</text>
+
+        <!-- Z12 — outlet abajo derecha -->
+        <rect x="676" y="613" width="88" height="30" rx="4" class="zona-maceta" data-zona="z12" onclick="seleccionarZona('z12')"/>
+        <text x="720" y="631" class="label-maceta" style="font-size:8px" data-zona="z12">Z12 OUTLET</text>
+
+      </svg>
+
+      <div class="leyenda">
+        <div class="leyenda-item"><div class="leyenda-color" style="background:#f0d5c8;border-color:#c75b39"></div><span>Zona de macetas</span></div>
+        <div class="leyenda-item"><div class="leyenda-color" style="background:#e8e4dc"></div><span>Otras zonas del garden</span></div>
+        <div class="leyenda-item"><div class="leyenda-color" style="background:#bde0f5"></div><span>Lago</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div class="panel" id="panel">
+    <div class="panel-resizer" id="panel-resizer"></div>
+    <div class="search-box">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="buscador-global" placeholder="Buscar maceta o etiqueta (zona, modelo, material, forma...)" oninput="buscarGlobal(this.value)">
+      </div>
+      <div class="search-results" id="buscador-resultados"></div>
+    </div>
+    <div class="panel-empty" id="panel-empty">
+      <div class="icon">🪴</div>
+      <p>Haz clic en cualquier zona naranja para gestionar su catálogo de proveedores y colecciones, o usa el buscador de arriba para localizar una maceta.</p>
+    </div>
+    <div class="panel-content" id="panel-content">
+      <div class="panel-header">
+        <div class="zona-id" id="panel-zona-id"></div>
+        <h2 id="panel-zona-nombre"></h2>
+      </div>
+      <div class="panel-tabs">
+        <button class="panel-tab active" onclick="cambiarTab('catalogo')" id="tab-catalogo">Catálogo</button>
+        <button class="panel-tab" onclick="cambiarTab('resumen')" id="tab-resumen">Resumen</button>
+      </div>
+      <div class="panel-body" id="panel-body-catalogo">
+        <div id="catalogo-contenido"></div>
+        <button class="btn-add-proveedor" onclick="abrirModalProveedor()">+ Añadir proveedor</button>
+      </div>
+      <div class="panel-body" id="panel-body-resumen" style="display:none">
+        <div id="resumen-contenido"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal Proveedor -->
+<div class="modal-overlay" id="modal-proveedor">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-proveedor-titulo">Añadir proveedor</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-proveedor')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nombre del proveedor</label>
+        <input class="form-input" id="input-proveedor-nombre" placeholder="Ej: Santerra, Deroma, Nuscas..."/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="btn-eliminar-proveedor" style="display:none" onclick="eliminarProveedor()">Eliminar</button>
+      <button class="btn-cancelar" onclick="cerrarModal('modal-proveedor')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarProveedor()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Colección -->
+<div class="modal-overlay" id="modal-coleccion">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-coleccion-titulo">Añadir colección</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-coleccion')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nombre de la colección</label>
+        <input class="form-input" id="input-coleccion-nombre" placeholder="Ej: Colección Terra, Serie Cement..."/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="btn-eliminar-coleccion" style="display:none" onclick="eliminarColeccion()">Eliminar</button>
+      <button class="btn-cancelar" onclick="cerrarModal('modal-coleccion')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarColeccion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Modelo -->
+<div class="modal-overlay" id="modal-modelo">
+  <div class="modal" style="width:620px;max-width:96vw">
+    <div class="modal-header">
+      <h3 id="modal-modelo-titulo">Añadir modelo</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-modelo')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nombre del modelo</label>
+        <input class="form-input" id="input-modelo-nombre" placeholder="Ej: Cónico Rojo, Roma 40, Serie Terra..."/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Material</label>
+        <select class="form-select" id="input-modelo-material">
+          <option value="">— Seleccionar —</option>
+          <option>Terracota Asia</option>
+          <option>Terracota Italia</option>
+          <option>Terracota Nacional</option>
+          <option>Terracota África</option>
+          <option>Arcilla Esmaltada</option>
+          <option>Arcilla Negra Esmaltada</option>
+          <option>Gres</option>
+          <option>Gres Esmaltado</option>
+          <option>Cerámica</option>
+          <option>Cerámica Esmaltada</option>
+          <option>Fibra de Vidrio</option>
+          <option>Fibra de Cemento</option>
+          <option>Terra Light MGO</option>
+          <option>Ficonstone</option>
+          <option>Poliresina</option>
+          <option>Madera</option>
+          <option>Plástico</option>
+          <option>Plástico Reciclado</option>
+          <option>Resina Rotacional</option>
+          <option>Acero Galvanizado + pintura Tiger Drylac®</option>
+          <option>Acero con Aleación (cobre, cromo, níquel)</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto del producto</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="form-input" id="input-modelo-foto-url" placeholder="URL de la imagen (https://...)"/>
+          <input type="file" id="input-modelo-foto-file" accept="image/*" style="display:none" onchange="previewFoto(this)"/>
+          <button class="btn-cancelar" style="white-space:nowrap;padding:7px 10px;font-size:11px" onclick="document.getElementById('input-modelo-foto-file').click()">📁</button>
+        </div>
+        <img id="foto-preview" class="foto-preview" src="" alt="preview"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Etiquetas</label>
+        <div class="etiqueta-row" style="grid-template-columns:1fr 1.4fr auto">
+          <select class="form-select" id="input-etiqueta-cat" style="font-size:12px;padding:6px 8px">
+            <option value="material">Material</option>
+            <option value="forma">Forma</option>
+            <option value="tamano">Tamaño</option>
+            <option value="otro">Otra</option>
+          </select>
+          <input class="form-input" id="input-etiqueta-valor" placeholder="Ej: redonda, grande, exterior..." style="font-size:12px;padding:6px 8px" onkeydown="if(event.key==='Enter'){event.preventDefault();addEtiqueta();}">
+          <button class="btn-add" style="margin-top:0;width:auto;padding:6px 12px" onclick="addEtiqueta()">+ Añadir</button>
+        </div>
+        <div class="etiquetas-list" id="etiquetas-list"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notas</label>
+        <textarea class="form-textarea" id="input-modelo-notas" placeholder="Observaciones, disponibilidad, precio orientativo..."></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <input type="checkbox" id="input-modelo-descatalogado" style="width:18px;height:18px;cursor:pointer"/>
+        <label for="input-modelo-descatalogado" style="font-size:12px;cursor:pointer;color:#c0392b;font-weight:500">Modelo descatalogado</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="btn-eliminar-modelo" style="display:none" onclick="eliminarModelo()">Eliminar</button>
+      <button class="btn-cancelar" onclick="cerrarModal('modal-modelo')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarModelo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Fecha -->
+<div class="modal-overlay" id="modal-fecha">
+  <div class="modal" style="width:320px">
+    <div class="modal-header">
+      <h3>Actualizar fecha</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-fecha')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Fecha de actualización</label>
+        <input type="date" class="form-input" id="input-fecha"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-fecha')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarFecha()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'garden_v3';
+const OLD_STORAGE_KEY = 'garden_v2';
+
+const ZONAS_INFO = {
+  z1:'Z1 — Planta Autóctona (Macetas)', z2:'Z2 — Pérgola Macetas Fibra',
+  z3:'Z3 — Macetas Plástico', z4:'Z4 — Estanterías Temporada',
+  z5:'Z5 — Corner Macetas', z6:'Z6 — Zona Macetas Grande',
+  z7:'Z7 — Pasillo Antigüedades', z8:'Z8 — Pasillo Lago',
+  z9:'Z9 — Patio (Macetas)', z10:'Z10 — Tienda / Planta Interior',
+  z11:'Z11 — Tinajas y Picas Piedra', z12:'Z12 — Outlet'
+};
+
+let data = {};
+let zonaActiva = null;
+let tabActiva = 'catalogo';
+let ctx = { zonaId:null, provId:null, colId:null, modId:null };
+let fotoBlobUrl = null;
+
+// Crea una copia de los datos SIN fotos base64 (que son enormes y revientan localStorage)
+function datosParaLocalStorage() {
+  const copia = {};
+  Object.keys(data).forEach(z => {
+    copia[z] = (data[z]||[]).map(prov => ({
+      ...prov,
+      colecciones: (prov.colecciones||[]).map(col => ({
+        ...col,
+        modelos: (col.modelos||[]).map(mod => ({
+          ...mod,
+          // Conservar solo URLs normales, quitar data:image/... (base64)
+          foto: (mod.foto && !mod.foto.startsWith('data:')) ? mod.foto : ''
+        }))
+      }))
+    }));
+  });
+  return copia;
+}
+
+function cargarDatos() {
+  try {
+    let s = localStorage.getItem(STORAGE_KEY);
+    if (s) {
+      data = JSON.parse(s);
+    } else {
+      const old = localStorage.getItem(OLD_STORAGE_KEY);
+      if (old) {
+        data = migrarDatos(JSON.parse(old));
+        guardarDatos();
+      } else {
+        data = {};
+      }
+    }
+  } catch(e) { 
+    console.error('Error al cargar datos:', e);
+    data = {}; 
+  }
+  Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
+  const fecha = localStorage.getItem(STORAGE_KEY+'_fecha') || localStorage.getItem(OLD_STORAGE_KEY+'_fecha');
+  if (fecha) document.getElementById('fecha-texto').textContent = fecha;
+}
+
+// Convierte estructura antigua (talla.nombre = código, sin litros/forma/color) a la nueva
+function migrarDatos(old) {
+  const out = {};
+  Object.keys(old).forEach(zonaId => {
+    out[zonaId] = (old[zonaId]||[]).map(prov => ({
+      ...prov,
+      colecciones: (prov.colecciones||[]).map(col => ({
+        ...col,
+        modelos: (col.modelos||[]).map(mod => ({
+          ...mod,
+          etiquetas: mod.etiquetas || [],
+          tallas: (mod.tallas||[]).map(t => ({
+            id: t.id || uid(),
+            forma: t.forma || 'redonda',
+            diametro: t.diametro || '',
+            largo: t.largo || '',
+            ancho: t.ancho || '',
+            alto: t.alto || '',
+            litros: t.litros || (isNaN(parseFloat(t.nombre)) ? '' : t.nombre) || '',
+            color: t.color || ''
+          }))
+        }))
+      }))
+    }));
+  });
+  return out;
+}
+
+function guardarDatos() { 
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(datosParaLocalStorage()));
+  } catch(e) {
+    console.warn('Error guardando en localStorage:', e.message);
+  }
+}
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+function seleccionarZona(id) {
+  document.querySelectorAll('.zona-maceta').forEach(el => el.classList.remove('activa'));
+  document.querySelectorAll('.label-maceta').forEach(el => el.classList.remove('activa'));
+  document.querySelectorAll(`[data-zona="${id}"]`).forEach(el => el.classList.add('activa'));
+  zonaActiva = id;
+  document.getElementById('panel-empty').style.display = 'none';
+  document.getElementById('panel-content').classList.add('visible');
+  document.getElementById('panel-zona-id').textContent = id.toUpperCase();
+  document.getElementById('panel-zona-nombre').textContent = ZONAS_INFO[id].replace(/^Z\d+ — /,'');
+  cambiarTab(tabActiva);
+}
+
+function cambiarTab(tab) {
+  tabActiva = tab;
+  document.getElementById('tab-catalogo').classList.toggle('active', tab==='catalogo');
+  document.getElementById('tab-resumen').classList.toggle('active', tab==='resumen');
+  document.getElementById('panel-body-catalogo').style.display = tab==='catalogo' ? 'block':'none';
+  document.getElementById('panel-body-resumen').style.display = tab==='resumen' ? 'block':'none';
+  if (tab==='catalogo') renderCatalogo(); else renderResumen();
+}
+
+function renderCatalogo() {
+  if (!zonaActiva) return;
+  const proveedores = data[zonaActiva] || [];
+  const cont = document.getElementById('catalogo-contenido');
+  if (proveedores.length === 0) {
+    cont.innerHTML = '<div class="empty-zona">📦 Aún no hay proveedores en esta zona.<br>Añade el primero con el botón de abajo.</div>';
+    return;
+  }
+  cont.innerHTML = proveedores.map((prov,pIdx) => `
+    <div class="proveedor-block">
+      <div class="proveedor-header" onclick="toggleCollapse('pb-${prov.id}',this)">
+        <span class="proveedor-nombre">🏭 ${esc(prov.nombre)}</span>
+        <div style="display:flex;gap:3px;align-items:center" onclick="event.stopPropagation()">
+          <button class="btn-icon" onclick="abrirModalProveedor('${prov.id}')">✏</button>
+          <button class="btn-icon" onclick="abrirModalColeccion('${prov.id}')">+ Col.</button>
+          <span class="collapse-arrow">▾</span>
+        </div>
+      </div>
+      <div class="proveedor-body collapse-body" id="pb-${prov.id}">
+        ${prov.colecciones.length===0 ? '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:4px 0 2px">Sin colecciones aún</div>' :
+          prov.colecciones.map((col,cIdx) => `
+            <div class="coleccion-block">
+              <div class="coleccion-header" onclick="toggleCollapse('cb-${col.id}',this)">
+                <span class="coleccion-nombre">📂 ${esc(col.nombre)}</span>
+                <div style="display:flex;gap:3px;align-items:center" onclick="event.stopPropagation()">
+                  <div class="reorder-btns">
+                    <button class="btn-reorder" title="Subir colección" ${cIdx===0?'disabled':''} onclick="moverColeccion('${prov.id}','${col.id}',-1)">▲</button>
+                    <button class="btn-reorder" title="Bajar colección" ${cIdx===prov.colecciones.length-1?'disabled':''} onclick="moverColeccion('${prov.id}','${col.id}',1)">▼</button>
+                  </div>
+                  <button class="btn-icon" onclick="abrirModalColeccion('${prov.id}','${col.id}')">✏</button>
+                  <button class="btn-icon" onclick="abrirModalModelo('${prov.id}','${col.id}')">+ Mod.</button>
+                  <span class="collapse-arrow">▾</span>
+                </div>
+              </div>
+              <div class="coleccion-body collapse-body" id="cb-${col.id}">
+                ${col.modelos.length===0 ? '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:2px 0">Sin modelos</div>' :
+                  col.modelos.map((mod,mIdx) => renderModelo(mod,prov.id,col.id,mIdx,col.modelos.length)).join('')}
+                <button class="btn-add" onclick="abrirModalModelo('${prov.id}','${col.id}')">+ Añadir modelo</button>
+              </div>
+            </div>`).join('')}
+        <button class="btn-add" onclick="abrirModalColeccion('${prov.id}')">+ Añadir colección</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderModelo(mod, provId, colId, idx, total) {
+  const foto = mod.foto ? `<img class="modelo-foto" src="${esc(mod.foto)}" onerror="this.style.display='none'" alt="">` :
+    `<div class="modelo-foto-placeholder">🪴</div>`;
+  const etiquetas = mod.etiquetas&&mod.etiquetas.length ? `<div class="etiquetas-list">${mod.etiquetas.map(e=>`<span class="etiqueta-tag cat-${esc(e.cat)}">${esc(e.valor)}</span>`).join('')}</div>` : '';
+  const tituloModelo = mod.nombre ? esc(mod.nombre) : (mod.material ? esc(mod.material) : 'Modelo');
+  const mostrarMaterial = mod.material && mod.nombre ? `<div class="modelo-material">${esc(mod.material)}</div>` : '';
+  const descatalogado = mod.descatalogado ? `<div style="font-size:9px;color:#c0392b;font-weight:600;margin-top:2px">⚠️ DESCATALOGADO</div>` : '';
+  return `<div class="modelo-block"${mod.descatalogado?' style="opacity:0.6"':''}>
+    <div class="modelo-top">
+      <div class="modelo-info">
+        <div class="modelo-nombre">${tituloModelo}</div>
+        ${mostrarMaterial}
+        ${etiquetas}
+        ${mod.notas?`<div class="modelo-notas">${esc(mod.notas)}</div>`:''}
+        ${descatalogado}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${foto}
+        <div style="display:flex;gap:2px;align-items:center">
+          <div class="reorder-btns" style="flex-direction:row">
+            <button class="btn-reorder" title="Subir modelo" ${idx===0?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',-1)">◀</button>
+            <button class="btn-reorder" title="Bajar modelo" ${idx===total-1?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',1)">▶</button>
+          </div>
+          <button class="btn-icon" onclick="abrirModalModelo('${provId}','${colId}','${mod.id}')">✏</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderResumen() {
+  if (!zonaActiva) return;
+  const provs = data[zonaActiva]||[];
+  const cont = document.getElementById('resumen-contenido');
+  if (!provs.length) { cont.innerHTML='<div class="empty-zona">Sin datos aún en esta zona.</div>'; return; }
+  let nCols=0, nMods=0;
+  provs.forEach(p=>{nCols+=p.colecciones.length; p.colecciones.forEach(c=>nMods+=c.modelos.length);});
+  let html = `<div style="background:var(--maceta-light);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px">
+    <strong>${provs.length}</strong> proveedor${provs.length!==1?'es':''} · <strong>${nCols}</strong> colecciones · <strong>${nMods}</strong> modelos</div>`;
+  provs.forEach(p=>{
+    html+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:var(--tierra);margin-bottom:4px">🏭 ${esc(p.nombre)}</div>`;
+    p.colecciones.forEach(c=>{
+      html+=`<div style="margin-left:12px;margin-bottom:6px"><div style="font-size:11px;font-weight:600;color:var(--maceta);margin-bottom:3px">📂 ${esc(c.nombre)}</div>`;
+      c.modelos.forEach(m=>{
+        const titulo = m.nombre || m.material || 'Modelo';
+        const mat = m.material && m.nombre ? ' — '+esc(m.material) : '';
+        const desc = m.descatalogado ? ' <span style="color:#c0392b;font-weight:600">⚠️ DESCAT.</span>' : '';
+        html+=`<div style="margin-left:12px;font-size:11px;padding:2px 0">• ${esc(titulo)}${mat}${desc}</div>`;
+      });
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  cont.innerHTML=html;
+}
+
+function toggleCollapse(bodyId, headerEl) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const hidden = body.classList.toggle('hidden');
+  const arrow = headerEl.querySelector('.collapse-arrow');
+  if (arrow) arrow.style.transform = hidden ? 'rotate(-90deg)' : '';
+}
+
+// ---------- REORDENAR ----------
+function moverColeccion(provId, colId, dir) {
+  const p = data[zonaActiva].find(x=>x.id===provId); if(!p) return;
+  const i = p.colecciones.findIndex(c=>c.id===colId);
+  const j = i+dir;
+  if (j<0 || j>=p.colecciones.length) return;
+  [p.colecciones[i],p.colecciones[j]] = [p.colecciones[j],p.colecciones[i]];
+  guardarDatos(); renderCatalogo();
+}
+function moverModelo(provId, colId, modId, dir) {
+  const p = data[zonaActiva].find(x=>x.id===provId); if(!p) return;
+  const c = p.colecciones.find(x=>x.id===colId); if(!c) return;
+  const i = c.modelos.findIndex(m=>m.id===modId);
+  const j = i+dir;
+  if (j<0 || j>=c.modelos.length) return;
+  [c.modelos[i],c.modelos[j]] = [c.modelos[j],c.modelos[i]];
+  guardarDatos(); renderCatalogo();
+}
+// Proveedor
+function abrirModalProveedor(provId) {
+  ctx.zonaId=zonaActiva; ctx.provId=provId||null;
+  const edit=!!provId;
+  document.getElementById('modal-proveedor-titulo').textContent = edit?'Editar proveedor':'Añadir proveedor';
+  document.getElementById('btn-eliminar-proveedor').style.display = edit?'block':'none';
+  if (edit) { const p=data[zonaActiva].find(x=>x.id===provId); document.getElementById('input-proveedor-nombre').value=p?p.nombre:''; }
+  else document.getElementById('input-proveedor-nombre').value='';
+  document.getElementById('modal-proveedor').classList.add('open');
+}
+function guardarProveedor() {
+  const nombre=document.getElementById('input-proveedor-nombre').value.trim();
+  if (!nombre) return;
+  if (ctx.provId) { const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(p)p.nombre=nombre; }
+  else data[ctx.zonaId].push({id:uid(),nombre,colecciones:[]});
+  guardarDatos(); cerrarModal('modal-proveedor'); renderCatalogo(); mostrarToast('✓ Proveedor guardado');
+}
+function eliminarProveedor() {
+  if (!confirm('¿Eliminar este proveedor y todas sus colecciones?')) return;
+  data[ctx.zonaId]=data[ctx.zonaId].filter(p=>p.id!==ctx.provId);
+  guardarDatos(); cerrarModal('modal-proveedor'); renderCatalogo(); mostrarToast('Proveedor eliminado');
+}
+
+// Colección
+function abrirModalColeccion(provId, colId) {
+  ctx.zonaId=zonaActiva; ctx.provId=provId; ctx.colId=colId||null;
+  const edit=!!colId;
+  document.getElementById('modal-coleccion-titulo').textContent=edit?'Editar colección':'Añadir colección';
+  document.getElementById('btn-eliminar-coleccion').style.display=edit?'block':'none';
+  if (edit) { const p=data[zonaActiva].find(x=>x.id===provId); const c=p?p.colecciones.find(x=>x.id===colId):null; document.getElementById('input-coleccion-nombre').value=c?c.nombre:''; }
+  else document.getElementById('input-coleccion-nombre').value='';
+  document.getElementById('modal-coleccion').classList.add('open');
+}
+function guardarColeccion() {
+  const nombre=document.getElementById('input-coleccion-nombre').value.trim();
+  if (!nombre) return;
+  const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(!p)return;
+  if (ctx.colId) { const c=p.colecciones.find(x=>x.id===ctx.colId); if(c)c.nombre=nombre; }
+  else p.colecciones.push({id:uid(),nombre,modelos:[]});
+  guardarDatos(); cerrarModal('modal-coleccion'); renderCatalogo(); mostrarToast('✓ Colección guardada');
+}
+function eliminarColeccion() {
+  if (!confirm('¿Eliminar esta colección y todos sus modelos?')) return;
+  const p=data[ctx.zonaId].find(x=>x.id===ctx.provId);
+  if(p)p.colecciones=p.colecciones.filter(c=>c.id!==ctx.colId);
+  guardarDatos(); cerrarModal('modal-coleccion'); renderCatalogo(); mostrarToast('Colección eliminada');
+}
+
+// Modelo
+let etiquetasTmp = [];
+function abrirModalModelo(provId, colId, modId) {
+  ctx.zonaId=zonaActiva; ctx.provId=provId; ctx.colId=colId; ctx.modId=modId||null;
+  fotoBlobUrl=null;
+  const edit=!!modId;
+  document.getElementById('modal-modelo-titulo').textContent=edit?'Editar modelo':'Añadir modelo';
+  document.getElementById('btn-eliminar-modelo').style.display=edit?'block':'none';
+  const prev=document.getElementById('foto-preview');
+  prev.style.display='none'; prev.src='';
+  document.getElementById('input-modelo-foto-file').value='';
+  if (edit) {
+    const p=data[ctx.zonaId].find(x=>x.id===provId);
+    const c=p?p.colecciones.find(x=>x.id===colId):null;
+    const m=c?c.modelos.find(x=>x.id===modId):null;
+    if(m){
+      document.getElementById('input-modelo-nombre').value=m.nombre||'';
+      document.getElementById('input-modelo-material').value=m.material||'';
+      document.getElementById('input-modelo-foto-url').value=(m.foto&&!m.foto.startsWith('data:'))?m.foto:'';
+      document.getElementById('input-modelo-notas').value=m.notas||'';
+      document.getElementById('input-modelo-descatalogado').checked=m.descatalogado||false;
+      etiquetasTmp = (m.etiquetas||[]).map(e=>({...e}));
+      renderEtiquetas();
+      if(m.foto){prev.src=m.foto;prev.style.display='block';}
+    }
+  } else {
+    document.getElementById('input-modelo-nombre').value='';
+    document.getElementById('input-modelo-material').value='';
+    document.getElementById('input-modelo-foto-url').value='';
+    document.getElementById('input-modelo-notas').value='';
+    document.getElementById('input-modelo-descatalogado').checked=false;
+    etiquetasTmp = [];
+    renderEtiquetas();
+  }
+  document.getElementById('modal-modelo').classList.add('open');
+}
+
+function previewFoto(input) {
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    fotoBlobUrl=e.target.result;
+    const prev=document.getElementById('foto-preview');
+    prev.src=fotoBlobUrl; prev.style.display='block';
+    document.getElementById('input-modelo-foto-url').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ---------- ETIQUETAS ----------
+function addEtiqueta() {
+  const cat = document.getElementById('input-etiqueta-cat').value;
+  const valorInput = document.getElementById('input-etiqueta-valor');
+  const valor = valorInput.value.trim();
+  if (!valor) return;
+  etiquetasTmp.push({cat, valor});
+  valorInput.value='';
+  renderEtiquetas();
+}
+function quitarEtiqueta(idx) {
+  etiquetasTmp.splice(idx,1);
+  renderEtiquetas();
+}
+function renderEtiquetas() {
+  const cont = document.getElementById('etiquetas-list');
+  if (!etiquetasTmp.length) { cont.innerHTML = '<span style="font-size:11px;color:var(--texto-suave);font-style:italic">Sin etiquetas aún</span>'; return; }
+  cont.innerHTML = etiquetasTmp.map((e,i)=>`<span class="etiqueta-tag cat-${esc(e.cat)}">${esc(e.valor)} <span style="cursor:pointer;opacity:0.6" onclick="quitarEtiqueta(${i})">×</span></span>`).join('');
+}
+
+function guardarModelo() {
+  const material=document.getElementById('input-modelo-material').value;
+  const fotoUrl=document.getElementById('input-modelo-foto-url').value.trim();
+  const foto=fotoBlobUrl||fotoUrl||'';
+  const notas=document.getElementById('input-modelo-notas').value.trim();
+  const descatalogado=document.getElementById('input-modelo-descatalogado').checked;
+  const nombre=document.getElementById('input-modelo-nombre').value.trim();
+  if (!nombre && !material) { alert('Indica al menos el nombre o el material.'); return; }
+  const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(!p)return;
+  const c=p.colecciones.find(x=>x.id===ctx.colId); if(!c)return;
+  const etiquetas = etiquetasTmp.map(e=>({...e}));
+  if(ctx.modId){const m=c.modelos.find(x=>x.id===ctx.modId);if(m)Object.assign(m,{nombre,material,foto,notas,etiquetas,descatalogado});}
+  else c.modelos.push({id:uid(),nombre,material,foto,notas,etiquetas,descatalogado});
+  guardarDatos(); cerrarModal('modal-modelo'); renderCatalogo(); mostrarToast('✓ Modelo guardado');
+}
+function eliminarModelo() {
+  if(!confirm('¿Eliminar este modelo?'))return;
+  const p=data[ctx.zonaId].find(x=>x.id===ctx.provId);
+  const c=p?p.colecciones.find(x=>x.id===ctx.colId):null;
+  if(c)c.modelos=c.modelos.filter(m=>m.id!==ctx.modId);
+  guardarDatos(); cerrarModal('modal-modelo'); renderCatalogo(); mostrarToast('Modelo eliminado');
+}
+
+// ---------- BUSCADOR GLOBAL ----------
+let buscarTimeout = null;
+function buscarGlobal(q) {
+  clearTimeout(buscarTimeout);
+  buscarTimeout = setTimeout(()=>ejecutarBusqueda(q.trim()), 120);
+}
+function ejecutarBusqueda(q) {
+  const resCont = document.getElementById('buscador-resultados');
+  if (!q) { resCont.classList.remove('visible'); resCont.innerHTML=''; return; }
+  const qLower = q.toLowerCase();
+  const resultados = [];
+  Object.keys(data).forEach(zonaId=>{
+    (data[zonaId]||[]).forEach(prov=>{
+      (prov.colecciones||[]).forEach(col=>{
+        (col.modelos||[]).forEach(mod=>{
+          const campos = [
+            mod.nombre||'', mod.material||'', mod.notas||'', col.nombre||'', prov.nombre||'',
+            ...(mod.etiquetas||[]).map(e=>e.valor)
+          ].join(' ').toLowerCase();
+          if (campos.includes(qLower)) {
+            resultados.push({zonaId, prov, col, mod});
+          }
+        });
+      });
+    });
+  });
+  if (!resultados.length) {
+    resCont.innerHTML = '<div class="search-empty">Sin resultados para "'+esc(q)+'"</div>';
+    resCont.classList.add('visible');
+    return;
+  }
+  resCont.innerHTML = resultados.slice(0,40).map(r=>{
+    const titulo = r.mod.nombre || r.mod.material || 'Modelo';
+    const mat = r.mod.material && r.mod.nombre ? ' — '+esc(r.mod.material) : '';
+    const etiquetasTxt = (r.mod.etiquetas||[]).map(e=>e.valor).join(', ');
+    const desc = r.mod.descatalogado ? ' <span style="color:#c0392b">DESCAT.</span>' : '';
+    return `<div class="search-result-item" onclick="irAResultado('${r.zonaId}')">
+      <div class="search-result-zona">${esc(ZONAS_INFO[r.zonaId]||r.zonaId.toUpperCase())}</div>
+      <div class="search-result-nombre">${esc(titulo)}${mat}${desc}</div>
+      <div class="search-result-path">🏭 ${esc(r.prov.nombre)} · 📂 ${esc(r.col.nombre)}${etiquetasTxt?' · 🏷 '+esc(etiquetasTxt):''}</div>
+    </div>`;
+  }).join('');
+  resCont.classList.add('visible');
+}
+function irAResultado(zonaId) {
+  document.getElementById('buscador-resultados').classList.remove('visible');
+  document.getElementById('buscador-global').value='';
+  seleccionarZona(zonaId);
+  tabActiva='catalogo';
+  cambiarTab('catalogo');
+}
+
+// ---------- RESIZER DEL PANEL ----------
+(function initResizer(){
+  const resizer = document.getElementById('panel-resizer');
+  const panel = document.getElementById('panel');
+  if (!resizer || !panel) return;
+  let dragging = false;
+  resizer.addEventListener('mousedown', e=>{
+    dragging = true;
+    resizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if (!dragging) return;
+    const rect = panel.getBoundingClientRect();
+    const newWidth = window.innerWidth - e.clientX;
+    if (newWidth > 320 && newWidth < window.innerWidth*0.85) {
+      panel.style.width = newWidth+'px';
+    }
+  });
+  window.addEventListener('mouseup', ()=>{
+    if (dragging) { dragging=false; resizer.classList.remove('dragging'); document.body.style.userSelect=''; }
+  });
+})();
+
+// Fecha
+function abrirModalFecha() {
+  document.getElementById('input-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('modal-fecha').classList.add('open');
+}
+function guardarFecha() {
+  const val=document.getElementById('input-fecha').value; if(!val)return;
+  const [y,m,d]=val.split('-'); const texto=`${d}/${m}/${y}`;
+  document.getElementById('fecha-texto').textContent=texto;
+  try { localStorage.setItem(STORAGE_KEY+'_fecha',texto); } catch(e) {}
+  cerrarModal('modal-fecha'); mostrarToast('✓ Fecha actualizada');
+}
+
+// ---------- BACKUP & RESTORE ----------
+function descargarBackup() {
+  const backup = {
+    fecha: new Date().toISOString(),
+    datos: data
+  };
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Garden_Macetas_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  mostrarToast('✓ Backup descargado');
+}
+
+function cargarBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      data = backup.datos || backup;
+      if (!data.z1) Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
+      // Guardar en localStorage (sin fotos base64 para no superar cuota)
+      guardarDatos();
+      renderCatalogo();
+      if (zonaActiva) cambiarTab(tabActiva);
+      // Contar fotos base64 restauradas (solo visibles mientras la pestaña esté abierta)
+      let nFotos = 0;
+      Object.values(data).forEach(provs => (provs||[]).forEach(p => p.colecciones.forEach(c => c.modelos.forEach(m => { if (m.foto && m.foto.startsWith('data:')) nFotos++; }))));
+      if (nFotos > 0) {
+        mostrarToast(`✓ Restaurado (${nFotos} foto(s) visibles esta sesión)`);
+      } else {
+        mostrarToast('✓ Datos restaurados del backup');
+      }
+    } catch(err) {
+      alert('Error al cargar el backup:\n' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function cerrarModal(id){document.getElementById(id).classList.remove('open');}
+function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+['modal-proveedor','modal-coleccion','modal-modelo','modal-fecha'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){if(e.target===this)cerrarModal(id);});
+});
+
+document.addEventListener('click', function(e){
+  const box = document.querySelector('.search-box');
+  if (box && !box.contains(e.target)) document.getElementById('buscador-resultados').classList.remove('visible');
+});
+
+cargarDatos();
+</script>
+</body>
+</html>
