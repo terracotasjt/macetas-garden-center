@@ -164,6 +164,7 @@
     <h1>Mapa de colecciones y modelos</h1>
   </div>
   <div class="header-right">
+    <span id="estado-guardado" style="font-size:12px;color:#2d6a4f;font-weight:500;min-width:140px;text-align:right"></span>
     <button class="btn" onclick="descargarBackup()" title="Descargar respaldo de tus datos">💾 Backup</button>
     <button class="btn" onclick="document.getElementById('input-backup-file').click()" title="Cargar respaldo guardado">📂 Cargar</button>
     <input type="file" id="input-backup-file" accept=".json" style="display:none" onchange="cargarBackup(this)"/>
@@ -533,6 +534,71 @@
 const STORAGE_KEY = 'garden_v3';
 const OLD_STORAGE_KEY = 'garden_v2';
 
+// ---- CONFIGURACIÓN GITHUB ----
+const GITHUB_TOKEN = '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';
+const GITHUB_REPO = 'terracotasjt/macetas-garden-center';
+const GITHUB_FILE = 'datos_macetas.json';
+const GITHUB_API  = `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}`;
+
+let githubSha = null;
+let guardandoGithub = false;
+let pendienteGuardar = false;
+
+async function cargarDesdeGithub() {
+  try {
+    const res = await fetch(GITHUB_API, {
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+    });
+    if (res.status === 404) return false;
+    if (!res.ok) return false;
+    const file = await res.json();
+    githubSha = file.sha;
+    const contenido = JSON.parse(atob(file.content.replace(/\n/g,'')));
+    data = contenido.datos || contenido;
+    Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
+    if (contenido.fecha) document.getElementById('fecha-texto').textContent = contenido.fecha;
+    guardarDatos();
+    return true;
+  } catch(e) {
+    console.warn('Error cargando desde GitHub:', e);
+    return false;
+  }
+}
+
+async function guardarEnGithub() {
+  if (guardandoGithub) { pendienteGuardar = true; return; }
+  guardandoGithub = true;
+  mostrarEstadoGuardado('💾 Guardando...');
+  try {
+    const backup = { fecha: document.getElementById('fecha-texto').textContent, datos: datosParaLocalStorage() };
+    const contenido = btoa(unescape(encodeURIComponent(JSON.stringify(backup, null, 2))));
+    const body = { message: 'Actualización catálogo macetas', content: contenido };
+    if (githubSha) body.sha = githubSha;
+    const res = await fetch(GITHUB_API, {
+      method: 'PUT',
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Error al guardar en GitHub');
+    const result = await res.json();
+    githubSha = result.content.sha;
+    mostrarEstadoGuardado('✅ Guardado');
+  } catch(e) {
+    console.error('Error guardando en GitHub:', e);
+    mostrarEstadoGuardado('⚠️ Error al guardar');
+  } finally {
+    guardandoGithub = false;
+    if (pendienteGuardar) { pendienteGuardar = false; guardarEnGithub(); }
+  }
+}
+
+function mostrarEstadoGuardado(msg) {
+  let el = document.getElementById('estado-guardado');
+  if (!el) return;
+  el.textContent = msg;
+  if (msg === '✅ Guardado') setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
 const ZONAS_INFO = {
   z1:'Z1 — Planta Autóctona (Macetas)', z2:'Z2 — Pérgola Macetas Fibra',
   z3:'Z3 — Macetas Plástico', z4:'Z4 — Estanterías Temporada',
@@ -624,6 +690,7 @@ function guardarDatos() {
   } catch(e) {
     console.warn('Error guardando en localStorage:', e.message);
   }
+  guardarEnGithub();
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
@@ -1066,7 +1133,19 @@ document.addEventListener('click', function(e){
   if (box && !box.contains(e.target)) document.getElementById('buscador-resultados').classList.remove('visible');
 });
 
-cargarDatos();
+(async function init() {
+  mostrarEstadoGuardado("⏳ Cargando datos...");
+  const desdeGithub = await cargarDesdeGithub();
+  if (!desdeGithub) {
+    cargarDatos();
+    mostrarEstadoGuardado("⚠️ Sin conexión — datos locales");
+    setTimeout(() => mostrarEstadoGuardado(""), 3000);
+  } else {
+    mostrarEstadoGuardado("✅ Datos cargados");
+    setTimeout(() => mostrarEstadoGuardado(""), 3000);
+  }
+  if (zonaActiva) cambiarTab(tabActiva);
+})();
 </script>
 </body>
 </html>
