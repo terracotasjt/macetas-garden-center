@@ -10,7 +10,13 @@
       {
         "id": "mr0p301gcbus",
         "nombre": "HERSTERA",
-        "colecciones": []
+        "colecciones": [
+          {
+            "id": "mr0p3aqoiyjf",
+            "nombre": "ESMALTADO VIETNAM",
+            "modelos": []
+          }
+        ]
       }
     ],
     "z7": [],
