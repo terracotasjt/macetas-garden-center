@@ -102,6 +102,30 @@
   .etiqueta-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
   .etiqueta-row select, .etiqueta-row input { padding: 6px 8px; font-size: 12px; border: 1px solid var(--borde); border-radius: 6px; outline: none; font-family: 'DM Sans', sans-serif; }
   .etiqueta-row select:focus, .etiqueta-row input:focus { border-color: var(--maceta); }
+
+  .btn-toggle-medidas { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--maceta); background: var(--maceta-light); border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; margin-top: 6px; font-family: 'DM Sans', sans-serif; font-weight: 500; }
+  .btn-toggle-medidas:hover { background: #f0d8c8; }
+  .btn-toggle-medidas .flecha { transition: transform 0.15s; display:inline-block; }
+  .btn-toggle-medidas.abierto .flecha { transform: rotate(180deg); }
+  .medidas-panel { display: none; margin-top: 8px; border-top: 1px dashed var(--borde); padding-top: 8px; }
+  .medidas-panel.visible { display: block; }
+  .medida-card { background: #faf7f2; border: 1px solid #ede8e0; border-radius: 6px; padding: 7px 9px; margin-bottom: 5px; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .medida-info { display: flex; flex-direction: column; gap: 2px; }
+  .medida-dim { font-weight: 600; color: var(--tierra); }
+  .medida-precio-stock { display: flex; gap: 10px; color: var(--texto-suave); font-size: 11px; }
+  .medida-precio-stock .precio { color: #2d6a4f; font-weight: 600; }
+  .medida-precio-stock .stock-bajo { color: #c0392b; font-weight: 600; }
+
+  .medida-editor-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: end; background: #faf7f2; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+  .medida-editor-row .campos-medida { display: flex; gap: 6px; flex-wrap: wrap; }
+  .medida-editor-row .campo-mini { display: flex; flex-direction: column; gap: 2px; min-width: 56px; }
+  .medida-editor-row .campo-mini label { font-size: 9px; color: var(--texto-suave); font-weight: 600; }
+  .medida-editor-row .campo-mini input, .medida-editor-row .campo-mini select { padding: 5px 6px; font-size: 11.5px; border: 1px solid var(--borde); border-radius: 5px; width: 100%; font-family: 'DM Sans', sans-serif; }
+  .medida-forma-toggle { display: flex; align-items: center; gap: 5px; }
+  .medida-forma-toggle label { font-size: 9.5px; color: var(--texto-suave); cursor: pointer; display:flex; align-items:center; gap:3px; }
+  .btn-remove-medida { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; }
+  .btn-add-medida { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; color: var(--maceta); background: none; border: 1px dashed var(--maceta); border-radius: 6px; padding: 6px 10px; cursor: pointer; width: 100%; margin-top: 4px; font-family: 'DM Sans', sans-serif; }
+  .btn-add-medida:hover { background: var(--maceta-light); }
   /* BUSCADOR */
   .search-box { padding: 10px 16px; border-bottom: 1px solid var(--borde); flex-shrink: 0; background: #fbf9f5; position: relative; z-index: 10; }
   .search-input-wrap { position: relative; }
@@ -492,6 +516,11 @@
         <div class="etiquetas-list" id="etiquetas-list"></div>
       </div>
       <div class="form-group">
+        <label class="form-label">Medidas, precio y stock</label>
+        <div id="medidas-editor-list"></div>
+        <button class="btn-add-medida" onclick="addMedida()">+ Añadir medida</button>
+      </div>
+      <div class="form-group">
         <label class="form-label">Notas</label>
         <textarea class="form-textarea" id="input-modelo-notas" placeholder="Observaciones, disponibilidad, precio orientativo..."></textarea>
       </div>
@@ -755,6 +784,31 @@ function renderModelo(mod, provId, colId, idx, total) {
   const tituloModelo = mod.nombre ? esc(mod.nombre) : (mod.material ? esc(mod.material) : 'Modelo');
   const mostrarMaterial = mod.material && mod.nombre ? `<div class="modelo-material">${esc(mod.material)}</div>` : '';
   const descatalogado = mod.descatalogado ? `<div style="font-size:9px;color:#c0392b;font-weight:600;margin-top:2px">⚠️ DESCATALOGADO</div>` : '';
+  const medidas = mod.medidas || [];
+  const idPanel = `medidas-panel-${mod.id}`;
+  const idBtn = `btn-medidas-${mod.id}`;
+  const botonMedidas = medidas.length ? `
+    <button class="btn-toggle-medidas" id="${idBtn}" onclick="toggleMedidasPanel('${mod.id}')">
+      <span>Ver medidas y precios (${medidas.length})</span><span class="flecha">▾</span>
+    </button>
+    <div class="medidas-panel" id="${idPanel}">
+      ${medidas.map(m => {
+        const dim = formatoMedidaTexto(m);
+        const precio = (m.precio!=='' && m.precio!=null) ? Number(m.precio).toFixed(2)+' €' : '— €';
+        const stockNum = (m.stock!=='' && m.stock!=null) ? Number(m.stock) : null;
+        const stockClass = (stockNum!==null && stockNum<=0) ? 'stock-bajo' : '';
+        const stockTxt = stockNum!==null ? stockNum+' uds' : '— uds';
+        return `<div class="medida-card">
+          <div class="medida-info">
+            <span class="medida-dim">${esc(dim)}</span>
+          </div>
+          <div class="medida-precio-stock">
+            <span class="precio">${esc(precio)}</span>
+            <span class="${stockClass}">${esc(stockTxt)}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
   return `<div class="modelo-block"${mod.descatalogado?' style="opacity:0.6"':''}>
     <div class="modelo-top">
       <div class="modelo-info">
@@ -763,6 +817,7 @@ function renderModelo(mod, provId, colId, idx, total) {
         ${etiquetas}
         ${mod.notas?`<div class="modelo-notas">${esc(mod.notas)}</div>`:''}
         ${descatalogado}
+        ${botonMedidas}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         ${foto}
@@ -776,6 +831,14 @@ function renderModelo(mod, provId, colId, idx, total) {
       </div>
     </div>
   </div>`;
+}
+
+function toggleMedidasPanel(modId) {
+  const panel = document.getElementById(`medidas-panel-${modId}`);
+  const btn = document.getElementById(`btn-medidas-${modId}`);
+  if (!panel || !btn) return;
+  panel.classList.toggle('visible');
+  btn.classList.toggle('abierto');
 }
 
 function renderResumen() {
@@ -901,6 +964,8 @@ function abrirModalModelo(provId, colId, modId) {
       document.getElementById('input-modelo-descatalogado').checked=m.descatalogado||false;
       etiquetasTmp = (m.etiquetas||[]).map(e=>({...e}));
       renderEtiquetas();
+      medidasTmp = (m.medidas||[]).map(med=>({...med}));
+      renderMedidasEditor();
       if(m.foto){prev.src=m.foto;prev.style.display='block';}
     }
   } else {
@@ -911,6 +976,8 @@ function abrirModalModelo(provId, colId, modId) {
     document.getElementById('input-modelo-descatalogado').checked=false;
     etiquetasTmp = [];
     renderEtiquetas();
+    medidasTmp = [];
+    renderMedidasEditor();
   }
   document.getElementById('modal-modelo').classList.add('open');
 }
@@ -947,6 +1014,58 @@ function renderEtiquetas() {
   cont.innerHTML = etiquetasTmp.map((e,i)=>`<span class="etiqueta-tag cat-${esc(e.cat)}">${esc(e.valor)} <span style="cursor:pointer;opacity:0.6" onclick="quitarEtiqueta(${i})">×</span></span>`).join('');
 }
 
+// ---------- MEDIDAS (diámetro/redonda o ancho×profundidad/cuadrada-rectangular), PRECIO Y STOCK ----------
+let medidasTmp = [];
+
+function addMedida() {
+  medidasTmp.push({id: uid(), forma: 'redonda', diametro: '', ancho: '', profundidad: '', altura: '', precio: '', stock: ''});
+  renderMedidasEditor();
+}
+function quitarMedida(idx) {
+  medidasTmp.splice(idx,1);
+  renderMedidasEditor();
+}
+function toggleFormaMedida(idx) {
+  medidasTmp[idx].forma = medidasTmp[idx].forma === 'redonda' ? 'cuadrada' : 'redonda';
+  renderMedidasEditor();
+}
+function actualizarCampoMedida(idx, campo, valor) {
+  medidasTmp[idx][campo] = valor;
+}
+function renderMedidasEditor() {
+  const cont = document.getElementById('medidas-editor-list');
+  if (!medidasTmp.length) { cont.innerHTML = '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:4px 0">Sin medidas aún. Añade una para indicar precio y stock.</div>'; return; }
+  cont.innerHTML = medidasTmp.map((m,i) => {
+    const esRedonda = m.forma !== 'cuadrada';
+    const camposDim = esRedonda
+      ? `<div class="campo-mini"><label>Diámetro (cm)</label><input type="number" min="0" step="0.5" value="${esc(m.diametro)}" oninput="actualizarCampoMedida(${i},'diametro',this.value)"/></div>
+         <div class="campo-mini"><label>Altura (cm)</label><input type="number" min="0" step="0.5" value="${esc(m.altura)}" oninput="actualizarCampoMedida(${i},'altura',this.value)"/></div>`
+      : `<div class="campo-mini"><label>Ancho (cm)</label><input type="number" min="0" step="0.5" value="${esc(m.ancho)}" oninput="actualizarCampoMedida(${i},'ancho',this.value)"/></div>
+         <div class="campo-mini"><label>Profund. (cm)</label><input type="number" min="0" step="0.5" value="${esc(m.profundidad)}" oninput="actualizarCampoMedida(${i},'profundidad',this.value)"/></div>
+         <div class="campo-mini"><label>Altura (cm)</label><input type="number" min="0" step="0.5" value="${esc(m.altura)}" oninput="actualizarCampoMedida(${i},'altura',this.value)"/></div>`;
+    return `<div class="medida-editor-row">
+      <div class="medida-forma-toggle">
+        <label title="Marcar si es cuadrada o rectangular"><input type="checkbox" ${!esRedonda?'checked':''} onchange="toggleFormaMedida(${i})"/> Cuadrada/Rect.</label>
+      </div>
+      <div class="campos-medida">
+        ${camposDim}
+        <div class="campo-mini"><label>PVP (€)</label><input type="number" min="0" step="0.01" value="${esc(m.precio)}" oninput="actualizarCampoMedida(${i},'precio',this.value)"/></div>
+        <div class="campo-mini"><label>Stock</label><input type="number" min="0" step="1" value="${esc(m.stock)}" oninput="actualizarCampoMedida(${i},'stock',this.value)"/></div>
+      </div>
+      <button class="btn-remove-medida" title="Eliminar medida" onclick="quitarMedida(${i})">×</button>
+    </div>`;
+  }).join('');
+}
+
+function formatoMedidaTexto(m) {
+  if (m.forma === 'cuadrada') {
+    const partes = [m.ancho, m.profundidad, m.altura].filter(v=>v!=='' && v!=null);
+    return partes.length ? partes.join(' × ')+' cm' : '— cm';
+  }
+  const partes = [m.diametro, m.altura].filter(v=>v!=='' && v!=null);
+  return partes.length ? 'Ø '+partes.join(' × ')+' cm' : 'Ø — cm';
+}
+
 function guardarModelo() {
   const material=document.getElementById('input-modelo-material').value;
   const fotoUrl=document.getElementById('input-modelo-foto-url').value.trim();
@@ -958,8 +1077,9 @@ function guardarModelo() {
   const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(!p)return;
   const c=p.colecciones.find(x=>x.id===ctx.colId); if(!c)return;
   const etiquetas = etiquetasTmp.map(e=>({...e}));
-  if(ctx.modId){const m=c.modelos.find(x=>x.id===ctx.modId);if(m)Object.assign(m,{nombre,material,foto,notas,etiquetas,descatalogado});}
-  else c.modelos.push({id:uid(),nombre,material,foto,notas,etiquetas,descatalogado});
+  const medidas = medidasTmp.map(m=>({...m}));
+  if(ctx.modId){const m=c.modelos.find(x=>x.id===ctx.modId);if(m)Object.assign(m,{nombre,material,foto,notas,etiquetas,medidas,descatalogado});}
+  else c.modelos.push({id:uid(),nombre,material,foto,notas,etiquetas,medidas,descatalogado});
   guardarDatos(); cerrarModal('modal-modelo'); renderCatalogo(); mostrarToast('✓ Modelo guardado');
 }
 function eliminarModelo() {
