@@ -14,7 +14,26 @@
           {
             "id": "mr0p3aqoiyjf",
             "nombre": "ESMALTADO VIETNAM",
-            "modelos": []
+            "modelos": [
+              {
+                "id": "mr0p4tse84xa",
+                "nombre": "Campana Alta Esmaltado Vietnam Azul",
+                "material": "Arcilla Negra Esmaltada",
+                "foto": "https://github.com/terracotasjt/macetas-garden-center/blob/main/Esmaltados%20Brillantes/Campana%20Alta%20Esmaltado%20Vietnam%20Azul.jpg?raw=true",
+                "notas": "",
+                "etiquetas": [
+                  {
+                    "cat": "material",
+                    "valor": "Esmaltado"
+                  },
+                  {
+                    "cat": "forma",
+                    "valor": "Campana Alta"
+                  }
+                ],
+                "descatalogado": false
+              }
+            ]
           }
         ]
       }
