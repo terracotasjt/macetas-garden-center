@@ -534,61 +534,48 @@
 const STORAGE_KEY = 'garden_v3';
 const OLD_STORAGE_KEY = 'garden_v2';
 
-// ---- CONFIGURACIÓN GITHUB ----
-const GITHUB_TOKEN = ['ghp_spBU','Wl7AaDdqPXyW','MTt5jtaevq2Y','Yv2IQSwG'].join('');
-const GITHUB_REPO = 'terracotasjt/macetas-garden-center';
-const GITHUB_FILE = 'datos_macetas.json';
-const GITHUB_API  = `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}`;
+// ---- CONFIGURACIÓN GOOGLE SHEETS (vía Apps Script) ----
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIh3MjFKHhoZMshABcMYYhpv9o_u8Kz12svsQvuREoGj7Jc4tw7xrp7VEIvAhJFuUZKQ/exec';
 
-let githubSha = null;
-let guardandoGithub = false;
+let guardandoSheets = false;
 let pendienteGuardar = false;
 
-async function cargarDesdeGithub() {
+async function cargarDesdeSheets() {
   try {
-    const res = await fetch(GITHUB_API, {
-      headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-    });
-    if (res.status === 404) return false;
+    const res = await fetch(SCRIPT_URL);
     if (!res.ok) return false;
-    const file = await res.json();
-    githubSha = file.sha;
-    const contenido = JSON.parse(atob(file.content.replace(/\n/g,'')));
+    const contenido = await res.json();
+    if (!contenido || Object.keys(contenido).length === 0) return false;
     data = contenido.datos || contenido;
     Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
     if (contenido.fecha) document.getElementById('fecha-texto').textContent = contenido.fecha;
     guardarDatos();
     return true;
   } catch(e) {
-    console.warn('Error cargando desde GitHub:', e);
+    console.warn('Error cargando desde Google Sheets:', e);
     return false;
   }
 }
 
-async function guardarEnGithub() {
-  if (guardandoGithub) { pendienteGuardar = true; return; }
-  guardandoGithub = true;
+async function guardarEnSheets() {
+  if (guardandoSheets) { pendienteGuardar = true; return; }
+  guardandoSheets = true;
   mostrarEstadoGuardado('💾 Guardando...');
   try {
     const backup = { fecha: document.getElementById('fecha-texto').textContent, datos: datosParaLocalStorage() };
-    const contenido = btoa(unescape(encodeURIComponent(JSON.stringify(backup, null, 2))));
-    const body = { message: 'Actualización catálogo macetas', content: contenido };
-    if (githubSha) body.sha = githubSha;
-    const res = await fetch(GITHUB_API, {
-      method: 'PUT',
-      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(backup)
     });
-    if (!res.ok) throw new Error('Error al guardar en GitHub');
-    const result = await res.json();
-    githubSha = result.content.sha;
+    if (!res.ok) throw new Error('Error al guardar en Sheets');
     mostrarEstadoGuardado('✅ Guardado');
   } catch(e) {
-    console.error('Error guardando en GitHub:', e);
+    console.error('Error guardando en Google Sheets:', e);
     mostrarEstadoGuardado('⚠️ Error al guardar');
   } finally {
-    guardandoGithub = false;
-    if (pendienteGuardar) { pendienteGuardar = false; guardarEnGithub(); }
+    guardandoSheets = false;
+    if (pendienteGuardar) { pendienteGuardar = false; guardarEnSheets(); }
   }
 }
 
@@ -690,7 +677,7 @@ function guardarDatos() {
   } catch(e) {
     console.warn('Error guardando en localStorage:', e.message);
   }
-  guardarEnGithub();
+  guardarEnSheets();
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
@@ -1135,7 +1122,7 @@ document.addEventListener('click', function(e){
 
 (async function init() {
   mostrarEstadoGuardado("⏳ Cargando datos...");
-  const desdeGithub = await cargarDesdeGithub();
+  const desdeGithub = await cargarDesdeSheets();
   if (!desdeGithub) {
     cargarDatos();
     mostrarEstadoGuardado("⚠️ Sin conexión — datos locales");
