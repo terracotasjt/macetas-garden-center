@@ -199,6 +199,13 @@
 </head>
 <body>
 
+<div id="overlay-cargando" style="position:fixed;inset:0;background:rgba(250,247,242,0.97);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:'DM Sans',sans-serif">
+  <div style="width:36px;height:36px;border:4px solid #ede8e0;border-top-color:var(--maceta);border-radius:50%;animation:girar 0.8s linear infinite"></div>
+  <div style="font-size:14px;color:var(--tierra);font-weight:600">Cargando catálogo actualizado...</div>
+  <div style="font-size:11px;color:var(--texto-suave)">Espera antes de editar, así no se pierden datos</div>
+</div>
+<style>@keyframes girar{to{transform:rotate(360deg)}}</style>
+
 <header>
   <div>
     <div class="subtitle">Garden · Zona Macetas</div>
@@ -604,11 +611,22 @@ async function cargarDesdeSheets() {
 }
 
 async function guardarEnSheets() {
+  if (!datosListos) {
+    console.warn('Guardado bloqueado: la carga inicial de datos aún no ha terminado. No se sobrescribe Google Sheets.');
+    return;
+  }
+  const datosAGuardar = datosParaLocalStorage();
+  const totalProveedores = Object.keys(datosAGuardar).reduce((sum,z) => sum + (datosAGuardar[z]||[]).length, 0);
+  if (totalProveedores === 0) {
+    console.warn('Guardado bloqueado: los datos en memoria están vacíos. Por seguridad no se sobrescribe Google Sheets (posible catálogo con datos real).');
+    mostrarEstadoGuardado('⚠️ Guardado cancelado (datos vacíos)');
+    return;
+  }
   if (guardandoSheets) { pendienteGuardar = true; return; }
   guardandoSheets = true;
   mostrarEstadoGuardado('💾 Guardando...');
   try {
-    const backup = { fecha: document.getElementById('fecha-texto').textContent, datos: datosParaLocalStorage() };
+    const backup = { fecha: document.getElementById('fecha-texto').textContent, datos: datosAGuardar };
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -646,6 +664,7 @@ let zonaActiva = null;
 let tabActiva = 'catalogo';
 let ctx = { zonaId:null, provId:null, colId:null, modId:null };
 let fotoBlobUrl = null;
+let datosListos = false; // true solo cuando la carga inicial (Sheets o local) ha terminado
 
 // Crea una copia de los datos SIN fotos base64 (que son enormes y revientan localStorage)
 function datosParaLocalStorage() {
@@ -1268,6 +1287,9 @@ document.addEventListener('click', function(e){
     mostrarEstadoGuardado("✅ Datos cargados");
     setTimeout(() => mostrarEstadoGuardado(""), 3000);
   }
+  datosListos = true;
+  const overlay = document.getElementById('overlay-cargando');
+  if (overlay) overlay.remove();
   if (zonaActiva) cambiarTab(tabActiva);
 })();
 </script>
