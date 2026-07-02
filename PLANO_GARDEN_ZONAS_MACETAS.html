@@ -590,8 +590,7 @@ const OLD_STORAGE_KEY = 'garden_v2';
 // ---- CONFIGURACIÓN GOOGLE SHEETS (vía Apps Script) ----
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIh3MjFKHhoZMshABcMYYhpv9o_u8Kz12svsQvuREoGj7Jc4tw7xrp7VEIvAhJFuUZKQ/exec';
 
-let guardandoSheets = false;
-let pendienteGuardar = false;
+// (guardandoSheets/pendienteGuardar reemplazados por la cola de promesas colaGuardado)
 
 async function cargarDesdeSheets() {
   try {
@@ -610,7 +609,14 @@ async function cargarDesdeSheets() {
   }
 }
 
-async function guardarEnSheets() {
+let colaGuardado = Promise.resolve();
+
+function guardarEnSheets() {
+  colaGuardado = colaGuardado.then(() => guardarEnSheetsInterno()).catch(e => console.error('Fallo en cola de guardado:', e));
+  return colaGuardado;
+}
+
+async function guardarEnSheetsInterno() {
   if (!datosListos) {
     console.warn('Guardado bloqueado: la carga inicial de datos aún no ha terminado. No se sobrescribe Google Sheets.');
     return;
@@ -622,8 +628,6 @@ async function guardarEnSheets() {
     mostrarEstadoGuardado('⚠️ Guardado cancelado (datos vacíos)');
     return;
   }
-  if (guardandoSheets) { pendienteGuardar = true; return; }
-  guardandoSheets = true;
   mostrarEstadoGuardado('💾 Guardando...');
   try {
     const backup = { fecha: document.getElementById('fecha-texto').textContent, datos: datosAGuardar };
@@ -637,9 +641,6 @@ async function guardarEnSheets() {
   } catch(e) {
     console.error('Error guardando en Google Sheets:', e);
     mostrarEstadoGuardado('⚠️ Error al guardar');
-  } finally {
-    guardandoSheets = false;
-    if (pendienteGuardar) { pendienteGuardar = false; guardarEnSheets(); }
   }
 }
 
@@ -740,6 +741,7 @@ function migrarDatos(old) {
 // para reducir el riesgo de que un ordenador sobrescriba cambios hechos en otro.
 // Si falla (sin conexión), continúa con los datos locales (permite trabajar offline).
 async function sincronizarAntesDeGuardar() {
+  try { await colaGuardado; } catch(e) { /* ya logueado en la cola */ }
   try { await cargarDesdeSheets(); }
   catch(e) { console.warn('No se pudo sincronizar antes de guardar, se usará la copia local actual.', e); }
 }
