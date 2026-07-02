@@ -595,7 +595,7 @@ let pendienteGuardar = false;
 
 async function cargarDesdeSheets() {
   try {
-    const res = await fetch(SCRIPT_URL);
+    const res = await fetch(SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return false;
     const contenido = await res.json();
     if (!contenido || Object.keys(contenido).length === 0) return false;
