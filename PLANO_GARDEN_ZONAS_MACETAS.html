@@ -36,6 +36,23 @@
   .label-maceta { font-family: 'DM Sans', sans-serif; font-size: 9px; font-weight: 700; fill: var(--maceta); pointer-events: none; text-anchor: middle; }
   .label-maceta.activa { fill: white; }
   .label-contexto { font-family: 'DM Sans', sans-serif; font-size: 8px; fill: #7a7a76; pointer-events: none; text-anchor: middle; }
+
+  /* RESPONSIVE: pantallas pequeñas (ej. caja 1024x768) — prioriza la lista sobre el mapa */
+  @media (max-width: 1100px) {
+    .layout { flex-direction: row; }
+    .map-container { flex: 0 0 220px; max-width: 220px; padding: 8px; overflow: auto; }
+    .map-wrapper { width: 200px; min-width: 200px; }
+    svg#garden-map { width: 200px; height: 161px; }
+    .update-badge { font-size: 8px; margin-bottom: 4px; }
+    .leyenda { display: none; }
+    .panel { flex: 1; width: auto; min-width: 0; max-width: none; border-left: 2px solid var(--maceta); }
+  }
+  @media (max-width: 1100px) and (max-height: 800px) {
+    header { padding: 8px 12px; }
+    header h1 { font-size: 14px; }
+    .btn { padding: 5px 10px; font-size: 11px; }
+  }
+
   /* PANEL */
   .panel { width: 560px; min-width: 420px; max-width: 80vw; background: var(--panel-bg); border-left: 1px solid var(--borde); display: flex; flex-direction: column; overflow: hidden; position: relative; }
   .panel-resizer { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 5; }
