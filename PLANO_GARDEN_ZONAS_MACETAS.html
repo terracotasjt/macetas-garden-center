@@ -626,7 +626,7 @@ async function cargarDesdeFirebase() {
     data = contenido.datos || contenido;
     Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
     if (contenido.fecha) document.getElementById('fecha-texto').textContent = contenido.fecha;
-    // guardar copia local como caché (sin disparar guardarEnFirebase)
+    // Solo caché local, NO dispara guardarEnFirebase
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(datosParaLocalStorage())); } catch(e) {}
     return true;
   } catch(e) {
@@ -672,12 +672,6 @@ async function guardarEnFirebaseInterno() {
     console.error('Error guardando en Firebase:', e);
     mostrarEstadoGuardado('⚠️ Error al guardar');
   }
-}
-
-async function sincronizarAntesDeGuardar() {
-  try { await colaGuardado; } catch(e) {}
-  try { await cargarDesdeFirebase(); }
-  catch(e) { console.warn('No se pudo sincronizar antes de guardar, usando copia local.', e); }
 }
 
 function mostrarEstadoGuardado(msg) {
@@ -978,17 +972,15 @@ function abrirModalProveedor(provId) {
   else document.getElementById('input-proveedor-nombre').value='';
   document.getElementById('modal-proveedor').classList.add('open');
 }
-async function guardarProveedor() {
+function guardarProveedor() {
   const nombre=document.getElementById('input-proveedor-nombre').value.trim();
   if (!nombre) return;
-  await sincronizarAntesDeGuardar();
   if (ctx.provId) { const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(p)p.nombre=nombre; }
   else data[ctx.zonaId].push({id:uid(),nombre,colecciones:[]});
   guardarDatos(); cerrarModal('modal-proveedor'); renderCatalogo(); mostrarToast('✓ Proveedor guardado');
 }
-async function eliminarProveedor() {
+function eliminarProveedor() {
   if (!confirm('¿Eliminar este proveedor y todas sus colecciones?')) return;
-  await sincronizarAntesDeGuardar();
   data[ctx.zonaId]=data[ctx.zonaId].filter(p=>p.id!==ctx.provId);
   guardarDatos(); cerrarModal('modal-proveedor'); renderCatalogo(); mostrarToast('Proveedor eliminado');
 }
@@ -1003,18 +995,16 @@ function abrirModalColeccion(provId, colId) {
   else document.getElementById('input-coleccion-nombre').value='';
   document.getElementById('modal-coleccion').classList.add('open');
 }
-async function guardarColeccion() {
+function guardarColeccion() {
   const nombre=document.getElementById('input-coleccion-nombre').value.trim();
   if (!nombre) return;
-  await sincronizarAntesDeGuardar();
   const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(!p)return;
   if (ctx.colId) { const c=p.colecciones.find(x=>x.id===ctx.colId); if(c)c.nombre=nombre; }
   else p.colecciones.push({id:uid(),nombre,modelos:[]});
   guardarDatos(); cerrarModal('modal-coleccion'); renderCatalogo(); mostrarToast('✓ Colección guardada');
 }
-async function eliminarColeccion() {
+function eliminarColeccion() {
   if (!confirm('¿Eliminar esta colección y todos sus modelos?')) return;
-  await sincronizarAntesDeGuardar();
   const p=data[ctx.zonaId].find(x=>x.id===ctx.provId);
   if(p)p.colecciones=p.colecciones.filter(c=>c.id!==ctx.colId);
   guardarDatos(); cerrarModal('modal-coleccion'); renderCatalogo(); mostrarToast('Colección eliminada');
@@ -1145,7 +1135,7 @@ function formatoMedidaTexto(m) {
   return partes.length ? 'Ø '+partes.join(' × ')+' cm' : 'Ø — cm';
 }
 
-async function guardarModelo() {
+function guardarModelo() {
   const material=document.getElementById('input-modelo-material').value;
   const fotoUrl=document.getElementById('input-modelo-foto-url').value.trim();
   const foto=fotoBlobUrl||fotoUrl||'';
@@ -1153,7 +1143,6 @@ async function guardarModelo() {
   const descatalogado=document.getElementById('input-modelo-descatalogado').checked;
   const nombre=document.getElementById('input-modelo-nombre').value.trim();
   if (!nombre && !material) { alert('Indica al menos el nombre o el material.'); return; }
-  await sincronizarAntesDeGuardar();
   const p=data[ctx.zonaId].find(x=>x.id===ctx.provId); if(!p)return;
   const c=p.colecciones.find(x=>x.id===ctx.colId); if(!c)return;
   const etiquetas = etiquetasTmp.map(e=>({...e}));
@@ -1162,9 +1151,8 @@ async function guardarModelo() {
   else c.modelos.push({id:uid(),nombre,material,foto,notas,etiquetas,medidas,descatalogado});
   guardarDatos(); cerrarModal('modal-modelo'); renderCatalogo(); mostrarToast('✓ Modelo guardado');
 }
-async function eliminarModelo() {
+function eliminarModelo() {
   if(!confirm('¿Eliminar este modelo?'))return;
-  await sincronizarAntesDeGuardar();
   const p=data[ctx.zonaId].find(x=>x.id===ctx.provId);
   const c=p?p.colecciones.find(x=>x.id===ctx.colId):null;
   if(c)c.modelos=c.modelos.filter(m=>m.id!==ctx.modId);
