@@ -38,6 +38,9 @@
   .zona-maceta.activa { fill: var(--maceta); }
   .label-maceta { font-family: 'DM Sans', sans-serif; font-size: 9px; font-weight: 700; fill: var(--maceta); pointer-events: none; text-anchor: middle; }
   .label-maceta.activa { fill: white; }
+  .zona-contexto-clicable { cursor: pointer; transition: filter 0.15s, stroke-width 0.15s; }
+  .zona-contexto-clicable:hover { filter: brightness(0.93); }
+  .zona-contexto-clicable.activa { stroke: var(--maceta) !important; stroke-width: 3 !important; }
   .label-contexto { font-family: 'DM Sans', sans-serif; font-size: 8px; fill: #7a7a76; pointer-events: none; text-anchor: middle; }
 
   /* RESPONSIVE: pantallas pequeñas (ej. caja 1024x768) — prioriza la lista sobre el mapa */
@@ -266,12 +269,12 @@
         <text x="724" y="306" class="label-contexto" style="font-size:7px">GIGANTES</text>
 
         <!-- Rosales -->
-        <rect x="533" y="358" width="82" height="34" rx="4" fill="#fce8ec" stroke="#e0a0b0" stroke-width="1"/>
-        <text x="574" y="378" class="label-contexto" style="font-size:7px">ROSALES</text>
+        <rect x="533" y="358" width="82" height="34" rx="4" fill="#fce8ec" stroke="#e0a0b0" stroke-width="1" class="zona-contexto-clicable" data-zona="rosales" onclick="seleccionarZona('rosales')"/>
+        <text x="574" y="378" class="label-contexto" style="font-size:7px" data-zona="rosales">ROSALES</text>
 
         <!-- Cactuario -->
-        <rect x="686" y="322" width="76" height="46" rx="4" fill="#e8f0d8" stroke="#a0b870" stroke-width="1"/>
-        <text x="724" y="349" class="label-contexto" style="font-size:7px">CACTUARIO</text>
+        <rect x="686" y="322" width="76" height="46" rx="4" fill="#e8f0d8" stroke="#a0b870" stroke-width="1" class="zona-contexto-clicable" data-zona="cactuario" onclick="seleccionarZona('cactuario')"/>
+        <text x="724" y="349" class="label-contexto" style="font-size:7px" data-zona="cactuario">CACTUARIO</text>
 
         <!-- Plantas arbustivas -->
         <rect x="686" y="372" width="76" height="60" rx="4" class="zona-verde"/>
@@ -323,8 +326,8 @@
         <text x="788" y="534" class="label-contexto" style="font-size:6px">RAS</text>
 
         <!-- Bonsáis — justo debajo de Z2, x=162 -->
-        <rect x="162" y="108" width="100" height="100" rx="3" fill="#e8e4dc" stroke="#c8c4bc" stroke-width="1"/>
-        <text x="212" y="162" class="label-contexto" style="font-size:7px">BONSÁIS</text>
+        <rect x="162" y="108" width="100" height="100" rx="3" fill="#e8e4dc" stroke="#c8c4bc" stroke-width="1" class="zona-contexto-clicable" data-zona="bonsais" onclick="seleccionarZona('bonsais')"/>
+        <text x="212" y="162" class="label-contexto" style="font-size:7px" data-zona="bonsais">BONSÁIS</text>
 
         <!-- ======= ZONAS MACETAS ======= -->
 
@@ -688,7 +691,8 @@ const ZONAS_INFO = {
   z5:'Z5 — Corner Macetas', z6:'Z6 — Zona Macetas Grande',
   z7:'Z7 — Pasillo Antigüedades', z8:'Z8 — Pasillo Lago',
   z9:'Z9 — Patio (Macetas)', z10:'Z10 — Tienda / Planta Interior',
-  z11:'Z11 — Tinajas y Picas Piedra', z12:'Z12 — Outlet'
+  z11:'Z11 — Tinajas y Picas Piedra', z12:'Z12 — Outlet',
+  bonsais:'Bonsáis', rosales:'Rosales', cactuario:'Cactuario'
 };
 
 let data = {};
@@ -782,7 +786,7 @@ function uid() { return Date.now().toString(36)+Math.random().toString(36).slice
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 
 function seleccionarZona(id) {
-  document.querySelectorAll('.zona-maceta').forEach(el => el.classList.remove('activa'));
+  document.querySelectorAll('.zona-maceta, .zona-contexto-clicable').forEach(el => el.classList.remove('activa'));
   document.querySelectorAll('.label-maceta').forEach(el => el.classList.remove('activa'));
   document.querySelectorAll(`[data-zona="${id}"]`).forEach(el => el.classList.add('activa'));
   zonaActiva = id;
