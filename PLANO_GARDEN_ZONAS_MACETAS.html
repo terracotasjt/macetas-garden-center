@@ -218,6 +218,7 @@
     <h1>Mapa de colecciones y modelos</h1>
   </div>
   <div class="header-right">
+    <span id="contador-total" title="Total de artículos (modelos) introducidos en todo el mapa" style="font-size:12px;color:white;font-weight:600;background:rgba(255,255,255,0.18);border-radius:8px;padding:5px 10px;white-space:nowrap"></span>
     <span id="estado-guardado" style="font-size:12px;color:white;font-weight:500;min-width:140px;text-align:right;opacity:0.9"></span>
     <button class="btn" onclick="descargarBackup()" title="Descargar respaldo de tus datos">💾 Backup</button>
     <button class="btn" onclick="document.getElementById('input-backup-file').click()" title="Cargar respaldo guardado">📂 Cargar</button>
@@ -781,6 +782,30 @@ function guardarDatos() {
     console.warn('Error guardando en localStorage:', e.message);
   }
   guardarEnFirebase();
+  actualizarContadorTotal();
+}
+
+// Cuenta el total de artículos (modelos) introducidos en TODAS las zonas del mapa
+function contarTotalArticulos() {
+  let nProvs=0, nCols=0, nMods=0;
+  Object.keys(data).forEach(zonaId => {
+    (data[zonaId]||[]).forEach(p => {
+      nProvs++;
+      (p.colecciones||[]).forEach(c => {
+        nCols++;
+        nMods += (c.modelos||[]).length;
+      });
+    });
+  });
+  return { nProvs, nCols, nMods };
+}
+
+function actualizarContadorTotal() {
+  const el = document.getElementById('contador-total');
+  if (!el) return;
+  const { nProvs, nCols, nMods } = contarTotalArticulos();
+  el.textContent = `🪴 ${nMods} artículo${nMods!==1?'s':''}`;
+  el.title = `Total en todo el mapa: ${nProvs} proveedor${nProvs!==1?'es':''} · ${nCols} colección${nCols!==1?'es':''} · ${nMods} artículo${nMods!==1?'s':''}`;
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
@@ -1337,6 +1362,7 @@ document.addEventListener('click', function(e){
     setTimeout(() => mostrarEstadoGuardado(""), 3000);
   }
   datosListos = true;
+  actualizarContadorTotal();
   const overlay = document.getElementById('overlay-cargando');
   if (overlay) overlay.remove();
   if (zonaActiva) cambiarTab(tabActiva);
