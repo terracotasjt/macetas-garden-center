@@ -135,9 +135,8 @@
   .medida-card { background: #faf7f2; border: 1px solid #ede8e0; border-radius: 6px; padding: 7px 9px; margin-bottom: 5px; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .medida-info { display: flex; flex-direction: column; gap: 2px; }
   .medida-dim { font-weight: 600; color: var(--tierra); }
-  .medida-precio-stock { display: flex; gap: 10px; color: var(--texto-suave); font-size: 11px; }
-  .medida-precio-stock .precio { color: #2d6a4f; font-weight: 600; }
-  .medida-precio-stock .stock-bajo { color: #c0392b; font-weight: 600; }
+  .medida-precio { display: flex; gap: 10px; color: var(--texto-suave); font-size: 11px; }
+  .medida-precio .precio { color: #2d6a4f; font-weight: 600; }
 
   .medida-editor-row { display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center; background: #faf7f2; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
   .medida-editor-row .campos-medida { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -548,7 +547,7 @@
         <div class="etiquetas-list" id="etiquetas-list"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">Medidas, precio y stock</label>
+        <label class="form-label">Medidas y precio</label>
         <div id="medidas-editor-list"></div>
         <button class="btn-add-medida" onclick="addMedida()">+ Añadir medida</button>
       </div>
@@ -894,16 +893,12 @@ function renderModelo(mod, provId, colId, idx, total) {
       ${medidas.map(m => {
         const dim = formatoMedidaTexto(m);
         const precio = (m.precio!=='' && m.precio!=null) ? Number(m.precio).toFixed(2)+' €' : '— €';
-        const stockNum = (m.stock!=='' && m.stock!=null) ? Number(m.stock) : null;
-        const stockClass = (stockNum!==null && stockNum<=0) ? 'stock-bajo' : '';
-        const stockTxt = stockNum!==null ? stockNum+' uds' : '— uds';
         return `<div class="medida-card">
           <div class="medida-info">
             <span class="medida-dim">${esc(dim)}</span>
           </div>
-          <div class="medida-precio-stock">
+          <div class="medida-precio">
             <span class="precio">${esc(precio)}</span>
-            <span class="${stockClass}">${esc(stockTxt)}</span>
           </div>
         </div>`;
       }).join('')}
@@ -1113,11 +1108,11 @@ function renderEtiquetas() {
   cont.innerHTML = etiquetasTmp.map((e,i)=>`<span class="etiqueta-tag cat-${esc(e.cat)}">${esc(e.valor)} <span style="cursor:pointer;opacity:0.6" onclick="quitarEtiqueta(${i})">×</span></span>`).join('');
 }
 
-// ---------- MEDIDAS (diámetro/redonda o ancho×profundidad/cuadrada-rectangular), PRECIO Y STOCK ----------
+// ---------- MEDIDAS (diámetro/redonda o ancho×profundidad/cuadrada-rectangular) Y PRECIO ----------
 let medidasTmp = [];
 
 function addMedida() {
-  medidasTmp.push({id: uid(), forma: 'redonda', diametro: '', ancho: '', profundidad: '', altura: '', precio: '', stock: ''});
+  medidasTmp.push({id: uid(), forma: 'redonda', diametro: '', ancho: '', profundidad: '', altura: '', precio: ''});
   renderMedidasEditor();
 }
 function quitarMedida(idx) {
@@ -1139,7 +1134,7 @@ function actualizarCampoMedida(idx, campo, valor) {
 }
 function renderMedidasEditor() {
   const cont = document.getElementById('medidas-editor-list');
-  if (!medidasTmp.length) { cont.innerHTML = '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:4px 0">Sin medidas aún. Añade una para indicar precio y stock.</div>'; return; }
+  if (!medidasTmp.length) { cont.innerHTML = '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:4px 0">Sin medidas aún. Añade una para indicar precio.</div>'; return; }
   cont.innerHTML = medidasTmp.map((m,i) => {
     const esRedonda = m.forma !== 'cuadrada';
     const camposDim = esRedonda
@@ -1159,7 +1154,6 @@ function renderMedidasEditor() {
       <div class="campos-medida">
         ${camposDim}
         <div class="campo-mini"><label>PVP (€)</label><input type="number" min="0" step="0.01" value="${esc(m.precio)}" oninput="actualizarCampoMedida(${i},'precio',this.value)"/></div>
-        <div class="campo-mini"><label>Stock</label><input type="number" min="0" step="1" value="${esc(m.stock)}" oninput="actualizarCampoMedida(${i},'stock',this.value)"/></div>
       </div>
       <button class="btn-remove-medida" title="Eliminar medida" onclick="quitarMedida(${i})">×</button>
     </div>`;
