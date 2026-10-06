@@ -88,14 +88,14 @@
   .coleccion-header { background: #fdf8f2; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
   .coleccion-header:hover { background: #f5ede0; }
   .coleccion-nombre { font-size: 12px; font-weight: 600; color: var(--maceta); }
-  .coleccion-body { padding: 6px 8px; }
-  .modelo-block { background: white; border: 1px solid #ede8e0; border-radius: 6px; margin-bottom: 6px; padding: 8px 10px; }
-  .modelo-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-  .modelo-info { flex: 1; }
+  .coleccion-body { padding: 6px 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .modelo-block { background: white; border: 1px solid #ede8e0; border-radius: 6px; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  .modelo-top { display: flex; flex-direction: column; gap: 0; }
+  .modelo-info { flex: 1; padding: 8px 10px; }
   .modelo-nombre { font-size: 12px; font-weight: 600; color: var(--texto); margin-bottom: 2px; }
   .modelo-material { font-size: 11px; color: var(--texto-suave); margin-bottom: 4px; }
-  .modelo-foto { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; border: 1px solid var(--borde); flex-shrink: 0; }
-  .modelo-foto-placeholder { width: 52px; height: 52px; border-radius: 6px; background: var(--maceta-light); border: 1px dashed var(--borde); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .modelo-foto { width: 100%; height: 180px; border-radius: 0; object-fit: contain; border: none; flex-shrink: 0; background: white; padding: 12px; box-sizing: border-box; }
+  .modelo-foto-placeholder { width: 100%; height: 180px; border-radius: 0; background: white; border: 1px dashed var(--borde); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-sizing: border-box; }
   .tallas-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
   .talla-tag { background: var(--arena); border: 1px solid var(--borde); border-radius: 12px; padding: 2px 8px; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--texto-suave); }
   .modelo-notas { font-size: 11px; color: var(--texto-suave); font-style: italic; margin-top: 4px; }
@@ -905,6 +905,7 @@ function renderModelo(mod, provId, colId, idx, total) {
     </div>` : '';
   return `<div class="modelo-block"${mod.descatalogado?' style="opacity:0.6"':''}>
     <div class="modelo-top">
+      ${foto}
       <div class="modelo-info">
         <div class="modelo-nombre">${tituloModelo}</div>
         ${mostrarMaterial}
@@ -912,10 +913,7 @@ function renderModelo(mod, provId, colId, idx, total) {
         ${mod.notas?`<div class="modelo-notas">${esc(mod.notas)}</div>`:''}
         ${descatalogado}
         ${botonMedidas}
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-        ${foto}
-        <div style="display:flex;gap:2px;align-items:center">
+        <div style="display:flex;gap:2px;align-items:center;margin-top:8px">
           <div class="reorder-btns" style="flex-direction:row">
             <button class="btn-reorder" title="Subir modelo" ${idx===0?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',-1)">◀</button>
             <button class="btn-reorder" title="Bajar modelo" ${idx===total-1?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',1)">▶</button>
