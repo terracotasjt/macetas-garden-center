@@ -84,6 +84,12 @@
   .btn-icon { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px; color: var(--texto-suave); transition: background 0.1s; font-family: 'DM Sans', sans-serif; }
   .btn-icon:hover { background: rgba(0,0,0,0.08); }
   .proveedor-body { padding: 8px 10px; }
+  /* MENÚ CONTEXTUAL */
+  .context-menu { position: fixed; background: white; border: 1px solid var(--borde); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 500; min-width: 180px; padding: 4px 0; display: none; }
+  .context-menu.visible { display: block; }
+  .context-menu-item { padding: 8px 14px; font-size: 12px; color: var(--texto); cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px; transition: background 0.1s; user-select: none; }
+  .context-menu-item:hover { background: var(--maceta-light); }
+  .context-menu-divider { height: 1px; background: var(--borde); margin: 4px 0; }
   .coleccion-block { border: 1px solid #e8e0d8; border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
   .coleccion-header { background: #fdf8f2; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
   .coleccion-header:hover { background: #f5ede0; }
@@ -199,6 +205,18 @@
   .btn-danger { background: #c0392b; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: white; cursor: pointer; margin-right: auto; }
   .toast { position: fixed; bottom: 20px; right: 20px; background: var(--verde); color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; z-index: 200; pointer-events: none; }
   .toast.show { opacity: 1; }
+  /* CAMBIAR ZONA */
+  /* MENÚ CONTEXTUAL */
+  .context-menu { position: fixed; background: white; border: 1px solid var(--borde); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 500; min-width: 160px; padding: 4px 0; display: none; }
+  .context-menu.visible { display: block; }
+  .context-menu-item { padding: 8px 14px; font-size: 12px; color: var(--texto); cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px; transition: background 0.1s; }
+  .context-menu-item:hover { background: var(--maceta-light); }
+  .context-menu-item.danger { color: #c0392b; }
+  .context-menu-item.danger:hover { background: #fde8e8; }
+  .zonas-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 340px; overflow-y: auto; padding: 12px; background: #fafafa; border-radius: 8px; }
+  .zona-option { padding: 8px 10px; background: white; border: 1px solid var(--borde); border-radius: 6px; cursor: pointer; font-size: 11px; text-align: center; transition: all 0.1s; }
+  .zona-option:hover { background: var(--maceta-light); border-color: var(--maceta); }
+  .zona-option.activa-actual { background: #f5f5f5; opacity: 0.5; cursor: not-allowed; }
   @media print { .panel, .header-right { display: none !important; } .layout { height: auto; } }
 </style>
 </head>
@@ -588,7 +606,33 @@
   </div>
 </div>
 
+<!-- Modal Cambiar Zona -->
+<div class="modal-overlay" id="modal-cambiar-zona">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <h3 id="modal-cambiar-zona-titulo">Cambiar de zona</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-cambiar-zona')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" id="modal-cambiar-zona-subtitulo"></label>
+        <div class="zonas-selector" id="selector-zonas"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-cambiar-zona')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
+<!-- MENÚ CONTEXTUAL -->
+<div class="context-menu" id="context-menu">
+  <div class="context-menu-item" onclick="cambiarZonaDesdeContextMenu()">⇆ Cambiar de zona</div>
+  <div class="context-menu-divider"></div>
+  <div class="context-menu-item" onclick="abrirEditDesdeContextMenu()">✏️ Editar</div>
+</div>
 
 <script>
 const STORAGE_KEY = 'garden_v3';
@@ -852,7 +896,7 @@ function renderCatalogo() {
         ${prov.colecciones.length===0 ? '<div style="font-size:11px;color:var(--texto-suave);font-style:italic;padding:4px 0 2px">Sin colecciones aún</div>' :
           prov.colecciones.map((col,cIdx) => `
             <div class="coleccion-block">
-              <div class="coleccion-header" onclick="toggleCollapse('cb-${col.id}',this)">
+              <div class="coleccion-header" onclick="toggleCollapse('cb-${col.id}',this)" oncontextmenu="abrirContextMenu(event,'coleccion','${prov.id}','${col.id}')">
                 <span class="coleccion-nombre">📂 ${esc(col.nombre)}</span>
                 <div style="display:flex;gap:3px;align-items:center" onclick="event.stopPropagation()">
                   <div class="reorder-btns">
@@ -913,7 +957,7 @@ function renderModelo(mod, provId, colId, idx, total) {
         ${mod.notas?`<div class="modelo-notas">${esc(mod.notas)}</div>`:''}
         ${descatalogado}
         ${botonMedidas}
-        <div style="display:flex;gap:2px;align-items:center;margin-top:8px">
+        <div style="display:flex;gap:2px;align-items:center;margin-top:8px" oncontextmenu="abrirContextMenu(event,'modelo','${provId}','${colId}','${mod.id}')">
           <div class="reorder-btns" style="flex-direction:row">
             <button class="btn-reorder" title="Subir modelo" ${idx===0?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',-1)">◀</button>
             <button class="btn-reorder" title="Bajar modelo" ${idx===total-1?'disabled':''} onclick="moverModelo('${provId}','${colId}','${mod.id}',1)">▶</button>
@@ -984,6 +1028,103 @@ function moverModelo(provId, colId, modId, dir) {
   if (j<0 || j>=c.modelos.length) return;
   [c.modelos[i],c.modelos[j]] = [c.modelos[j],c.modelos[i]];
   guardarDatos(); renderCatalogo();
+}
+
+// ---------- CAMBIAR ZONA ----------
+let cambiarZonaCtx = { tipo: null, provId: null, colId: null, modId: null };
+
+function abrirModalCambiarZona(tipo, provId, colId, modId) {
+  cambiarZonaCtx = { tipo, provId, colId, modId };
+  let titulo, subtitulo;
+  
+  if (tipo === 'coleccion') {
+    const p = data[zonaActiva].find(x=>x.id===provId);
+    const col = p ? p.colecciones.find(x=>x.id===colId) : null;
+    titulo = `Cambiar colección "${col?.nombre || 'Sin nombre'}" a otra zona`;
+    subtitulo = 'Selecciona la zona destino:';
+  } else {
+    const p = data[zonaActiva].find(x=>x.id===provId);
+    const col = p ? p.colecciones.find(x=>x.id===colId) : null;
+    const mod = col ? col.modelos.find(x=>x.id===modId) : null;
+    titulo = `Cambiar modelo a otra zona`;
+    subtitulo = `${mod?.nombre || 'Modelo'} — Selecciona la zona destino:`;
+  }
+  
+  document.getElementById('modal-cambiar-zona-titulo').textContent = titulo;
+  document.getElementById('modal-cambiar-zona-subtitulo').textContent = subtitulo;
+  
+  // Renderizar opciones de zonas
+  let html = '';
+  Object.entries(ZONAS_INFO).forEach(([zonaId, zonaNombre]) => {
+    const activa = zonaId === zonaActiva ? ' activa-actual' : '';
+    const disabled = zonaId === zonaActiva ? 'disabled' : '';
+    html += `<div class="zona-option${activa}" ${disabled} onclick="cambiarZonaItem('${zonaId}')" title="${zonaNombre}">${zonaNombre}</div>`;
+  });
+  document.getElementById('selector-zonas').innerHTML = html;
+  
+  document.getElementById('modal-cambiar-zona').classList.add('open');
+}
+
+function cambiarZonaItem(zonaDestino) {
+  if (zonaDestino === zonaActiva) return;
+  
+  const { tipo, provId, colId, modId } = cambiarZonaCtx;
+  
+  // Asegurarse de que la zona destino existe
+  if (!data[zonaDestino]) data[zonaDestino] = [];
+  
+  if (tipo === 'coleccion') {
+    // Mover la colección completa
+    const prov = data[zonaActiva].find(p => p.id === provId);
+    if (!prov) return;
+    
+    const colIdx = prov.colecciones.findIndex(c => c.id === colId);
+    if (colIdx === -1) return;
+    
+    const coleccion = prov.colecciones.splice(colIdx, 1)[0];
+    
+    // Buscar el proveedor en la zona destino o crear uno igual
+    let provDestino = data[zonaDestino].find(p => p.id === provId);
+    if (!provDestino) {
+      provDestino = { id: provId, nombre: prov.nombre, colecciones: [] };
+      data[zonaDestino].push(provDestino);
+    }
+    
+    provDestino.colecciones.push(coleccion);
+    mostrarToast(`✓ Colección trasladada a ${ZONAS_INFO[zonaDestino]}`);
+  } else if (tipo === 'modelo') {
+    // Mover el modelo individual
+    const prov = data[zonaActiva].find(p => p.id === provId);
+    if (!prov) return;
+    
+    const col = prov.colecciones.find(c => c.id === colId);
+    if (!col) return;
+    
+    const modIdx = col.modelos.findIndex(m => m.id === modId);
+    if (modIdx === -1) return;
+    
+    const modelo = col.modelos.splice(modIdx, 1)[0];
+    
+    // Crear estructura similar en la zona destino si no existe
+    let provDestino = data[zonaDestino].find(p => p.id === provId);
+    if (!provDestino) {
+      provDestino = { id: provId, nombre: prov.nombre, colecciones: [] };
+      data[zonaDestino].push(provDestino);
+    }
+    
+    let colDestino = provDestino.colecciones.find(c => c.id === colId);
+    if (!colDestino) {
+      colDestino = { id: colId, nombre: col.nombre, modelos: [] };
+      provDestino.colecciones.push(colDestino);
+    }
+    
+    colDestino.modelos.push(modelo);
+    mostrarToast(`✓ Modelo trasladado a ${ZONAS_INFO[zonaDestino]}`);
+  }
+  
+  guardarDatos();
+  cerrarModal('modal-cambiar-zona');
+  renderCatalogo();
 }
 // Proveedor
 function abrirModalProveedor(provId) {
@@ -1359,6 +1500,48 @@ document.addEventListener('click', function(e){
   if (overlay) overlay.remove();
   if (zonaActiva) cambiarTab(tabActiva);
 })();
+
+// ========== MENÚ CONTEXTUAL ==========
+let contextMenuCtx = { tipo: null, provId: null, colId: null, modId: null };
+
+function abrirContextMenu(e, tipo, provId, colId, modId) {
+  e.preventDefault();
+  contextMenuCtx = { tipo, provId, colId, modId };
+  const menu = document.getElementById('context-menu');
+  menu.style.left = e.pageX + 'px';
+  menu.style.top = e.pageY + 'px';
+  menu.classList.add('visible');
+}
+
+function cambiarZonaDesdeContextMenu() {
+  const { tipo, provId, colId, modId } = contextMenuCtx;
+  cerrarContextMenu();
+  abrirModalCambiarZona(tipo, provId, colId, modId);
+}
+
+function abrirEditDesdeContextMenu() {
+  const { tipo, provId, colId, modId } = contextMenuCtx;
+  cerrarContextMenu();
+  if (tipo === 'coleccion') {
+    abrirModalColeccion(provId, colId);
+  } else if (tipo === 'modelo') {
+    abrirModalModelo(provId, colId, modId);
+  }
+}
+
+function cerrarContextMenu() {
+  document.getElementById('context-menu').classList.remove('visible');
+}
+
+// Cerrar menú al hacer click en cualquier lado
+document.addEventListener('click', function() {
+  cerrarContextMenu();
+});
+
+// Cerrar menú con ESC
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') cerrarContextMenu();
+});
 </script>
 </body>
 </html>
