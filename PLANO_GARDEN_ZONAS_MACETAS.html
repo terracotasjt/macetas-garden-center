@@ -449,6 +449,7 @@
       <div class="panel-body" id="panel-body-catalogo">
         <div id="catalogo-contenido"></div>
         <button class="btn-add-proveedor" onclick="abrirModalProveedor()">+ Añadir proveedor</button>
+        <button class="btn-add-proveedor" style="color:var(--maceta);border-color:var(--maceta)" onclick="unificarDuplicadosZona()" title="Une las colecciones (y proveedores) con el mismo nombre dentro de esta zona">🔗 Unificar colecciones duplicadas</button>
       </div>
       <div class="panel-body" id="panel-body-resumen" style="display:none">
         <div id="resumen-contenido"></div>
@@ -1065,6 +1066,72 @@ function abrirModalCambiarZona(tipo, provId, colId, modId) {
   document.getElementById('modal-cambiar-zona').classList.add('open');
 }
 
+// ---------- UNIFICAR POR NOMBRE (evita proveedores/colecciones duplicados) ----------
+function normalizarNombre(s) {
+  return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+}
+
+function buscarOCrearProveedor(zonaId, provOrigen) {
+  if (!data[zonaId]) data[zonaId] = [];
+  const nombreNorm = normalizarNombre(provOrigen.nombre);
+  let prov = data[zonaId].find(p => p.id === provOrigen.id) ||
+             data[zonaId].find(p => normalizarNombre(p.nombre) === nombreNorm);
+  if (!prov) {
+    prov = { id: provOrigen.id, nombre: provOrigen.nombre, colecciones: [] };
+    data[zonaId].push(prov);
+  }
+  if (!prov.colecciones) prov.colecciones = [];
+  return prov;
+}
+
+function buscarColeccionPorNombre(prov, nombre) {
+  const n = normalizarNombre(nombre);
+  return (prov.colecciones || []).find(c => normalizarNombre(c.nombre) === n) || null;
+}
+
+// Fusiona en la zona activa los proveedores y colecciones que tengan el mismo nombre
+function unificarDuplicadosZona() {
+  if (!zonaActiva) return;
+  const provs = data[zonaActiva] || [];
+  let fusionesProv = 0, fusionesCol = 0;
+
+  const provsUnicos = [];
+  provs.forEach(p => {
+    const existente = provsUnicos.find(x => normalizarNombre(x.nombre) === normalizarNombre(p.nombre));
+    if (existente) {
+      existente.colecciones.push(...(p.colecciones || []));
+      fusionesProv++;
+    } else {
+      p.colecciones = p.colecciones || [];
+      provsUnicos.push(p);
+    }
+  });
+
+  provsUnicos.forEach(p => {
+    const colsUnicas = [];
+    p.colecciones.forEach(c => {
+      const existente = colsUnicas.find(x => normalizarNombre(x.nombre) === normalizarNombre(c.nombre));
+      if (existente) {
+        existente.modelos.push(...(c.modelos || []));
+        fusionesCol++;
+      } else {
+        c.modelos = c.modelos || [];
+        colsUnicas.push(c);
+      }
+    });
+    p.colecciones = colsUnicas;
+  });
+
+  if (!fusionesProv && !fusionesCol) {
+    mostrarToast('No hay duplicados en esta zona');
+    return;
+  }
+  data[zonaActiva] = provsUnicos;
+  guardarDatos();
+  renderCatalogo();
+  mostrarToast(`✓ Unificadas ${fusionesCol} colección(es) y ${fusionesProv} proveedor(es) duplicados`);
+}
+
 function cambiarZonaItem(zonaDestino) {
   if (zonaDestino === zonaActiva) return;
   
@@ -1083,15 +1150,18 @@ function cambiarZonaItem(zonaDestino) {
     
     const coleccion = prov.colecciones.splice(colIdx, 1)[0];
     
-    // Buscar el proveedor en la zona destino o crear uno igual
-    let provDestino = data[zonaDestino].find(p => p.id === provId);
-    if (!provDestino) {
-      provDestino = { id: provId, nombre: prov.nombre, colecciones: [] };
-      data[zonaDestino].push(provDestino);
+    // Buscar el proveedor en destino (por id o por nombre) o crear uno igual
+    const provDestino = buscarOCrearProveedor(zonaDestino, prov);
+
+    // Si ya existe una colección con el mismo nombre, unir los modelos en ella
+    const colExistente = buscarColeccionPorNombre(provDestino, coleccion.nombre);
+    if (colExistente) {
+      colExistente.modelos.push(...(coleccion.modelos || []));
+      mostrarToast(`✓ Modelos unidos a "${colExistente.nombre}" en ${ZONAS_INFO[zonaDestino]}`);
+    } else {
+      provDestino.colecciones.push(coleccion);
+      mostrarToast(`✓ Colección trasladada a ${ZONAS_INFO[zonaDestino]}`);
     }
-    
-    provDestino.colecciones.push(coleccion);
-    mostrarToast(`✓ Colección trasladada a ${ZONAS_INFO[zonaDestino]}`);
   } else if (tipo === 'modelo') {
     // Mover el modelo individual
     const prov = data[zonaActiva].find(p => p.id === provId);
@@ -1105,19 +1175,14 @@ function cambiarZonaItem(zonaDestino) {
     
     const modelo = col.modelos.splice(modIdx, 1)[0];
     
-    // Crear estructura similar en la zona destino si no existe
-    let provDestino = data[zonaDestino].find(p => p.id === provId);
-    if (!provDestino) {
-      provDestino = { id: provId, nombre: prov.nombre, colecciones: [] };
-      data[zonaDestino].push(provDestino);
-    }
-    
-    let colDestino = provDestino.colecciones.find(c => c.id === colId);
+    // Buscar proveedor y colección en destino (por id o por nombre) o crearlos
+    const provDestino = buscarOCrearProveedor(zonaDestino, prov);
+    let colDestino = buscarColeccionPorNombre(provDestino, col.nombre);
     if (!colDestino) {
-      colDestino = { id: colId, nombre: col.nombre, modelos: [] };
+      colDestino = { id: uid(), nombre: col.nombre, modelos: [] };
       provDestino.colecciones.push(colDestino);
     }
-    
+
     colDestino.modelos.push(modelo);
     mostrarToast(`✓ Modelo trasladado a ${ZONAS_INFO[zonaDestino]}`);
   }
