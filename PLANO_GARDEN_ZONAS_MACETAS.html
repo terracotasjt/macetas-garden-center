@@ -38,6 +38,13 @@
   .zona-maceta.activa { fill: var(--maceta); }
   .label-maceta { font-family: 'DM Sans', sans-serif; font-size: 9px; font-weight: 700; fill: var(--maceta); pointer-events: none; text-anchor: middle; }
   .label-maceta.activa { fill: white; }
+  .label-maceta.sub { fill: var(--maceta); }
+  .label-maceta.sub.activa { fill: white; }
+  /* Cabecera del panel con botón de editar nombre de zona */
+  .panel-header-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .btn-editar-zona { background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); color: white; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .btn-editar-zona:hover { background: rgba(255,255,255,0.32); }
+  .nombre-zona-defecto { font-size: 11px; color: var(--texto-suave); margin-top: 6px; line-height: 1.4; }
   .zona-contexto-clicable { cursor: pointer; transition: filter 0.15s, stroke-width 0.15s; }
   .zona-contexto-clicable:hover { filter: brightness(0.93); }
   .zona-contexto-clicable.activa { stroke: var(--maceta) !important; stroke-width: 3 !important; }
@@ -440,7 +447,10 @@
     <div class="panel-content" id="panel-content">
       <div class="panel-header">
         <div class="zona-id" id="panel-zona-id"></div>
-        <h2 id="panel-zona-nombre"></h2>
+        <div class="panel-header-fila">
+          <h2 id="panel-zona-nombre"></h2>
+          <button class="btn-editar-zona" onclick="abrirModalNombreZona()" title="Cambiar el nombre de esta zona">✏ Renombrar</button>
+        </div>
       </div>
       <div class="panel-tabs">
         <button class="panel-tab active" onclick="cambiarTab('catalogo')" id="tab-catalogo">Catálogo</button>
@@ -587,6 +597,28 @@
   </div>
 </div>
 
+<!-- Modal Nombre de zona -->
+<div class="modal-overlay" id="modal-nombre-zona">
+  <div class="modal" style="width:400px">
+    <div class="modal-header">
+      <h3>Renombrar zona</h3>
+      <button class="modal-close" onclick="cerrarModal('modal-nombre-zona')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" id="label-nombre-zona">Nombre de la zona</label>
+        <input class="form-input" id="input-zona-nombre" maxlength="60" placeholder="Ej: Macetas de cerámica" onkeydown="if(event.key==='Enter'){event.preventDefault();guardarNombreZona();}"/>
+        <div class="nombre-zona-defecto" id="nombre-zona-defecto"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="btn-restaurar-nombre-zona" onclick="restaurarNombreZona()">Restaurar original</button>
+      <button class="btn-cancelar" onclick="cerrarModal('modal-nombre-zona')">Cancelar</button>
+      <button class="btn-guardar" onclick="guardarNombreZona()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Fecha -->
 <div class="modal-overlay" id="modal-fecha">
   <div class="modal" style="width:320px">
@@ -675,8 +707,10 @@ async function cargarDesdeFirebase() {
     data = contenido.datos || contenido;
     Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
     if (contenido.fecha) document.getElementById('fecha-texto').textContent = contenido.fecha;
+    NOMBRES_ZONAS = limpiarNombres(contenido.nombresZonas);
     // Solo caché local, NO dispara guardarEnFirebase
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(datosParaLocalStorage())); } catch(e) {}
+    try { localStorage.setItem(STORAGE_KEY+'_nombres', JSON.stringify(NOMBRES_ZONAS)); } catch(e) {}
     return true;
   } catch(e) {
     console.warn('Error cargando desde Firebase:', e);
@@ -713,6 +747,7 @@ async function guardarEnFirebaseInterno() {
     const backup = {
       fecha: document.getElementById('fecha-texto').textContent,
       datos: datosAGuardar,
+      nombresZonas: NOMBRES_ZONAS,
       ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
     };
     await db.collection('catalogo').doc('datos').set(backup);
@@ -739,6 +774,163 @@ const ZONAS_INFO = {
   z11:'Z11 — Tinajas y Picas Piedra', z12:'Z12 — Outlet',
   bonsais:'Bonsáis', rosales:'Rosales', cactuario:'Cactuario'
 };
+
+// ---------- NOMBRES DE ZONA EDITABLES ----------
+// Solo se guardan las zonas renombradas: { z1: 'Nuevo nombre', ... }
+// Si una zona no está aquí, se usa el nombre original de ZONAS_INFO.
+let NOMBRES_ZONAS = {};
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ETIQUETAS_ORIGINALES = {};
+
+function nombreZonaDefecto(id) { return (ZONAS_INFO[id] || id).replace(/^Z\d+ — /, ''); }
+function nombreZona(id) { return NOMBRES_ZONAS[id] || nombreZonaDefecto(id); }
+function esZonaMaceta(id) { return /^z\d+$/.test(id); }
+function etiquetaZona(id) { return esZonaMaceta(id) ? `${id.toUpperCase()} — ${nombreZona(id)}` : nombreZona(id); }
+
+// Deja solo claves de zonas conocidas con texto no vacío
+function limpiarNombres(obj) {
+  const out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  Object.keys(ZONAS_INFO).forEach(id => {
+    const v = typeof obj[id] === 'string' ? obj[id].trim() : '';
+    if (v) out[id] = v;
+  });
+  return out;
+}
+
+// Agrupa las etiquetas SVG de cada zona en un <g> para poder redibujarlas al renombrar
+function prepararEtiquetasMapa() {
+  Object.keys(ZONAS_INFO).forEach(id => {
+    const textos = Array.from(document.querySelectorAll(`#garden-map text[data-zona="${id}"]`));
+    if (!textos.length) return;
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('data-grupo', id);
+    textos[0].parentNode.insertBefore(g, textos[0]);
+    ETIQUETAS_ORIGINALES[id] = textos.map(t => t.cloneNode(true));
+    textos.forEach(t => g.appendChild(t));
+  });
+}
+
+function recortarTexto(s, max) { return s.length <= max ? s : s.slice(0, Math.max(1, max - 1)) + '…'; }
+
+function envolverTexto(texto, max) {
+  const lineas = [];
+  let actual = '';
+  texto.split(/\s+/).filter(Boolean).forEach(pal => {
+    pal = recortarTexto(pal, max);
+    if (!actual) actual = pal;
+    else if ((actual + ' ' + pal).length <= max) actual += ' ' + pal;
+    else { lineas.push(actual); actual = pal; }
+  });
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+
+// Redibuja la etiqueta de una zona en el mapa (original si no está renombrada)
+function dibujarEtiquetaZona(id) {
+  const g = document.querySelector(`#garden-map g[data-grupo="${id}"]`);
+  const rect = document.querySelector(`#garden-map rect[data-zona="${id}"]`);
+  if (!g || !rect || !ETIQUETAS_ORIGINALES[id]) return;
+  while (g.firstChild) g.removeChild(g.firstChild);
+  const activa = zonaActiva === id;
+
+  if (!NOMBRES_ZONAS[id]) {
+    ETIQUETAS_ORIGINALES[id].forEach(t => {
+      const c = t.cloneNode(true);
+      if (c.classList.contains('label-maceta')) {
+        c.style.removeProperty('fill'); // el color lo da la clase (naranja / blanco si está activa)
+        if (activa) c.classList.add('activa');
+      }
+      g.appendChild(c);
+    });
+    return;
+  }
+
+  const x = parseFloat(rect.getAttribute('x')), y = parseFloat(rect.getAttribute('y'));
+  const w = parseFloat(rect.getAttribute('width')), h = parseFloat(rect.getAttribute('height'));
+  const esMaceta = rect.classList.contains('zona-maceta');
+  const cx = x + w / 2, cy = y + h / 2;
+  const nombre = NOMBRES_ZONAS[id].toUpperCase();
+
+  const crear = (txt, ty, clases, fs) => {
+    const t = document.createElementNS(SVG_NS, 'text');
+    t.setAttribute('x', cx);
+    t.setAttribute('y', ty);
+    t.setAttribute('class', clases + (activa && esMaceta ? ' activa' : ''));
+    t.setAttribute('data-zona', id);
+    if (fs) t.setAttribute('style', `font-size:${fs}px`);
+    t.textContent = txt;
+    g.appendChild(t);
+  };
+
+  // Zonas muy bajas (franjas): una sola línea "Zn — NOMBRE"
+  if (esMaceta && h < 36) {
+    const fs = 7;
+    const max = Math.max(6, Math.floor((w - 8) / (fs * 0.62)));
+    crear(recortarTexto(`${id.toUpperCase()} — ${nombre}`, max), cy + 3, 'label-maceta', fs);
+    return;
+  }
+
+  const fs = w < 70 ? 6 : 7;
+  const lh = fs + 3;
+  const max = Math.max(5, Math.floor((w - 8) / (fs * 0.62)));
+  const altoId = esMaceta ? 11 : 0;
+  const maxLineas = Math.max(1, Math.floor((h - 10 - altoId) / lh));
+  let lineas = envolverTexto(nombre, max);
+  if (lineas.length > maxLineas) {
+    lineas = lineas.slice(0, maxLineas);
+    lineas[maxLineas - 1] = recortarTexto(lineas[maxLineas - 1] + '…', max);
+  }
+  const total = altoId + lineas.length * lh;
+  const top = cy - total / 2;
+  if (esMaceta) crear(id.toUpperCase(), top + 9, 'label-maceta', w < 70 ? 8 : null);
+  lineas.forEach((l, i) => {
+    crear(l, top + altoId + i * lh + fs - 1, esMaceta ? 'label-maceta sub' : 'label-contexto', fs);
+  });
+}
+
+function aplicarNombresZonas() {
+  Object.keys(ZONAS_INFO).forEach(dibujarEtiquetaZona);
+  if (zonaActiva) actualizarCabeceraPanel();
+}
+
+function actualizarCabeceraPanel() {
+  if (!zonaActiva) return;
+  document.getElementById('panel-zona-nombre').textContent = nombreZona(zonaActiva);
+}
+
+function abrirModalNombreZona() {
+  if (!zonaActiva) return;
+  document.getElementById('input-zona-nombre').value = nombreZona(zonaActiva);
+  document.getElementById('label-nombre-zona').textContent = esZonaMaceta(zonaActiva) ? `Nombre de ${zonaActiva.toUpperCase()}` : 'Nombre de la zona';
+  document.getElementById('nombre-zona-defecto').textContent = `Nombre original: ${nombreZonaDefecto(zonaActiva)}`;
+  document.getElementById('btn-restaurar-nombre-zona').style.display = NOMBRES_ZONAS[zonaActiva] ? 'block' : 'none';
+  document.getElementById('modal-nombre-zona').classList.add('open');
+  setTimeout(() => { const i = document.getElementById('input-zona-nombre'); i.focus(); i.select(); }, 50);
+}
+
+function cambiarNombreZona(id, nuevo) {
+  if (nuevo && nuevo !== nombreZonaDefecto(id)) NOMBRES_ZONAS[id] = nuevo;
+  else delete NOMBRES_ZONAS[id];
+  guardarDatos();
+  dibujarEtiquetaZona(id);
+  if (id === zonaActiva) actualizarCabeceraPanel();
+  cerrarModal('modal-nombre-zona');
+}
+
+function guardarNombreZona() {
+  if (!zonaActiva) return;
+  const v = document.getElementById('input-zona-nombre').value.trim().replace(/\s+/g, ' ');
+  if (!v) { alert('Escribe un nombre para la zona (o pulsa "Restaurar original").'); return; }
+  cambiarNombreZona(zonaActiva, v);
+  mostrarToast('✓ Nombre de zona guardado');
+}
+
+function restaurarNombreZona() {
+  if (!zonaActiva) return;
+  cambiarNombreZona(zonaActiva, '');
+  mostrarToast('Nombre original restaurado');
+}
 
 let data = {};
 let zonaActiva = null;
@@ -787,6 +979,7 @@ function cargarDatos() {
   Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
   const fecha = localStorage.getItem(STORAGE_KEY+'_fecha') || localStorage.getItem(OLD_STORAGE_KEY+'_fecha');
   if (fecha) document.getElementById('fecha-texto').textContent = fecha;
+  try { NOMBRES_ZONAS = limpiarNombres(JSON.parse(localStorage.getItem(STORAGE_KEY+'_nombres') || '{}')); } catch(e) { NOMBRES_ZONAS = {}; }
 }
 
 // Convierte estructura antigua (talla.nombre = código, sin litros/forma/color) a la nueva
@@ -822,6 +1015,7 @@ function migrarDatos(old) {
 function guardarDatos() { 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(datosParaLocalStorage()));
+    localStorage.setItem(STORAGE_KEY+'_nombres', JSON.stringify(NOMBRES_ZONAS));
   } catch(e) {
     console.warn('Error guardando en localStorage:', e.message);
   }
@@ -862,7 +1056,9 @@ function seleccionarZona(id) {
   document.getElementById('panel-empty').style.display = 'none';
   document.getElementById('panel-content').classList.add('visible');
   document.getElementById('panel-zona-id').textContent = id.toUpperCase();
-  document.getElementById('panel-zona-nombre').textContent = ZONAS_INFO[id].replace(/^Z\d+ — /,'');
+  actualizarCabeceraPanel();
+  // Si alguna etiqueta del mapa se ha redibujado, asegura el estado activo
+  dibujarEtiquetaZona(id);
   cambiarTab(tabActiva);
 }
 
@@ -888,6 +1084,10 @@ function renderCatalogo() {
       <div class="proveedor-header" onclick="toggleCollapse('pb-${prov.id}',this)">
         <span class="proveedor-nombre">🏭 ${esc(prov.nombre)}</span>
         <div style="display:flex;gap:3px;align-items:center" onclick="event.stopPropagation()">
+          <div class="reorder-btns">
+            <button class="btn-reorder" title="Subir proveedor" ${pIdx===0?'disabled':''} onclick="moverProveedor('${prov.id}',-1)">▲</button>
+            <button class="btn-reorder" title="Bajar proveedor" ${pIdx===proveedores.length-1?'disabled':''} onclick="moverProveedor('${prov.id}',1)">▼</button>
+          </div>
           <button class="btn-icon" onclick="abrirModalProveedor('${prov.id}')">✏</button>
           <button class="btn-icon" onclick="abrirModalColeccion('${prov.id}')">+ Col.</button>
           <span class="collapse-arrow">▾</span>
@@ -1013,6 +1213,14 @@ function toggleCollapse(bodyId, headerEl) {
 }
 
 // ---------- REORDENAR ----------
+function moverProveedor(provId, dir) {
+  const lista = data[zonaActiva]; if (!lista) return;
+  const i = lista.findIndex(p => p.id === provId);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= lista.length) return;
+  [lista[i], lista[j]] = [lista[j], lista[i]];
+  guardarDatos(); renderCatalogo();
+}
 function moverColeccion(provId, colId, dir) {
   const p = data[zonaActiva].find(x=>x.id===provId); if(!p) return;
   const i = p.colecciones.findIndex(c=>c.id===colId);
@@ -1056,7 +1264,8 @@ function abrirModalCambiarZona(tipo, provId, colId, modId) {
   
   // Renderizar opciones de zonas
   let html = '';
-  Object.entries(ZONAS_INFO).forEach(([zonaId, zonaNombre]) => {
+  Object.keys(ZONAS_INFO).forEach(zonaId => {
+    const zonaNombre = esc(etiquetaZona(zonaId));
     const activa = zonaId === zonaActiva ? ' activa-actual' : '';
     const disabled = zonaId === zonaActiva ? 'disabled' : '';
     html += `<div class="zona-option${activa}" ${disabled} onclick="cambiarZonaItem('${zonaId}')" title="${zonaNombre}">${zonaNombre}</div>`;
@@ -1157,10 +1366,10 @@ function cambiarZonaItem(zonaDestino) {
     const colExistente = buscarColeccionPorNombre(provDestino, coleccion.nombre);
     if (colExistente) {
       colExistente.modelos.push(...(coleccion.modelos || []));
-      mostrarToast(`✓ Modelos unidos a "${colExistente.nombre}" en ${ZONAS_INFO[zonaDestino]}`);
+      mostrarToast(`✓ Modelos unidos a "${colExistente.nombre}" en ${etiquetaZona(zonaDestino)}`);
     } else {
       provDestino.colecciones.push(coleccion);
-      mostrarToast(`✓ Colección trasladada a ${ZONAS_INFO[zonaDestino]}`);
+      mostrarToast(`✓ Colección trasladada a ${etiquetaZona(zonaDestino)}`);
     }
   } else if (tipo === 'modelo') {
     // Mover el modelo individual
@@ -1184,7 +1393,7 @@ function cambiarZonaItem(zonaDestino) {
     }
 
     colDestino.modelos.push(modelo);
-    mostrarToast(`✓ Modelo trasladado a ${ZONAS_INFO[zonaDestino]}`);
+    mostrarToast(`✓ Modelo trasladado a ${etiquetaZona(zonaDestino)}`);
   }
   
   guardarDatos();
@@ -1434,7 +1643,7 @@ function ejecutarBusqueda(q) {
     const etiquetasTxt = (r.mod.etiquetas||[]).map(e=>e.valor).join(', ');
     const desc = r.mod.descatalogado ? ' <span style="color:#c0392b">DESCAT.</span>' : '';
     return `<div class="search-result-item" onclick="irAResultado('${r.zonaId}')">
-      <div class="search-result-zona">${esc(ZONAS_INFO[r.zonaId]||r.zonaId.toUpperCase())}</div>
+      <div class="search-result-zona">${esc(etiquetaZona(r.zonaId))}</div>
       <div class="search-result-nombre">${esc(titulo)}${mat}${desc}</div>
       <div class="search-result-path">🏭 ${esc(r.prov.nombre)} · 📂 ${esc(r.col.nombre)}${etiquetasTxt?' · 🏷 '+esc(etiquetasTxt):''}</div>
     </div>`;
@@ -1491,7 +1700,8 @@ function guardarFecha() {
 function descargarBackup() {
   const backup = {
     fecha: new Date().toISOString(),
-    datos: data
+    datos: data,
+    nombresZonas: NOMBRES_ZONAS
   };
   const json = JSON.stringify(backup, null, 2);
   const blob = new Blob([json], {type: 'application/json'});
@@ -1515,8 +1725,11 @@ function cargarBackup(input) {
       const backup = JSON.parse(e.target.result);
       data = backup.datos || backup;
       if (!data.z1) Object.keys(ZONAS_INFO).forEach(z => { if (!data[z]) data[z] = []; });
+      // Nombres de zona: solo se sustituyen si el backup los trae (los backups antiguos no)
+      if (backup.nombresZonas) NOMBRES_ZONAS = limpiarNombres(backup.nombresZonas);
       // Guardar en localStorage (sin fotos base64 para no superar cuota)
       guardarDatos();
+      aplicarNombresZonas();
       renderCatalogo();
       if (zonaActiva) cambiarTab(tabActiva);
       // Contar fotos base64 restauradas (solo visibles mientras la pestaña esté abierta)
@@ -1538,7 +1751,7 @@ function cargarBackup(input) {
 function cerrarModal(id){document.getElementById(id).classList.remove('open');}
 function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-['modal-proveedor','modal-coleccion','modal-modelo','modal-fecha'].forEach(id=>{
+['modal-proveedor','modal-coleccion','modal-modelo','modal-fecha','modal-nombre-zona'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)cerrarModal(id);});
 });
 
@@ -1548,6 +1761,7 @@ document.addEventListener('click', function(e){
 });
 
 (async function init() {
+  prepararEtiquetasMapa();
   inicializarFirebase();
   mostrarEstadoGuardado("⏳ Cargando datos...");
   const desdeFirebase = await cargarDesdeFirebase();
@@ -1560,6 +1774,7 @@ document.addEventListener('click', function(e){
     setTimeout(() => mostrarEstadoGuardado(""), 3000);
   }
   datosListos = true;
+  aplicarNombresZonas();
   actualizarContadorTotal();
   const overlay = document.getElementById('overlay-cargando');
   if (overlay) overlay.remove();
